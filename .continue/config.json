@@ -1,0 +1,19 @@
+{
+  "models": [
+    {
+      "title": "Gemini Pro",
+      "provider": "gemini",
+      "model": "gemini-pro",
+      "apiKey": "[YOUR_GEMINI_API_KEY]"
+    }
+  ],
+  "contextProviders": [
+    {
+      "name": "files",
+      "params": {
+        "include": ["AGENT.md", "README.md", "package.json", "tsconfig.json"]
+      }
+    }
+  ],
+  "systemMessage": "Read the AGENT.md file for project context and coding standards."
+}

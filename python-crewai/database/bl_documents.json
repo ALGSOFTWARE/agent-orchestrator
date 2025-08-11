@@ -1,0 +1,203 @@
+{
+  "collection": "bl_documents", 
+  "description": "BL (Bill of Lading) - Conhecimentos de Embarque Marítimo",
+  "documents": [
+    {
+      "_id": "bl_001",
+      "bl_number": "ABCD240001",
+      "tipo_bl": "MASTER_BL",
+      "data_emissao": "2024-08-01T12:00:00Z",
+      "armador": {
+        "codigo": "MSC",
+        "nome": "Mediterranean Shipping Company",
+        "endereco": "Av. Portuária, 100 - Santos/SP"
+      },
+      "shipper": {
+        "nome": "Exportadora Brasil Ltda",
+        "endereco": "Zona Portuária - Santos/SP",
+        "cnpj": "76.543.210/0001-87"
+      },
+      "consignee": {
+        "nome": "Importadora Global Inc.", 
+        "endereco": "Porto do Rio - Rio de Janeiro/RJ",
+        "cnpj": "33.444.555/0001-66"
+      },
+      "notify_party": {
+        "nome": "Agente Aduaneiro Rio Ltda",
+        "endereco": "Rua do Comércio, 200 - Rio de Janeiro/RJ"
+      },
+      "porto_embarque": {
+        "codigo": "BRSST",
+        "nome": "Porto de Santos",
+        "pais": "Brasil"
+      },
+      "porto_descarga": {
+        "codigo": "BRRIO",
+        "nome": "Porto do Rio de Janeiro", 
+        "pais": "Brasil"
+      },
+      "navio": {
+        "nome": "MSC Mediterranean",
+        "imo": "9234567",
+        "viagem": "2024-033"
+      },
+      "containers": [
+        {
+          "numero": "ABCD1234567",
+          "tipo": "20GP",
+          "peso_bruto": 18500.0,
+          "lacres": ["MSC123456", "TERM789012"]
+        }
+      ],
+      "mercadoria": {
+        "descricao": "ELECTRONICS EQUIPMENT PARTS",
+        "peso_bruto": 18500.0,
+        "peso_liquido": 16200.0,
+        "volume": 15.5,
+        "quantidade_volumes": 150,
+        "tipo_embalagem": "PALLETS",
+        "marcas_numeros": "ELEC/001-150"
+      },
+      "frete": {
+        "tipo_pagamento": "PREPAID",
+        "valor": 2500.00,
+        "moeda": "USD",
+        "local_pagamento": "Santos"
+      },
+      "data_embarque": "2024-08-01T18:00:00Z",
+      "eta_destino": "2024-08-03T18:00:00Z",
+      "status": "SHIPPED",
+      "observacoes": "FRAGILE - HANDLE WITH CARE"
+    },
+    {
+      "_id": "bl_002",
+      "bl_number": "EFGH240002",
+      "tipo_bl": "STRAIGHT_BL",
+      "data_emissao": "2024-08-02T09:30:00Z", 
+      "armador": {
+        "codigo": "LOG",
+        "nome": "Logística Nacional S.A.",
+        "endereco": "Rod. BR-101, KM 200 - Santos/SP"
+      },
+      "shipper": {
+        "nome": "Metalúrgica Sul Ltda",
+        "endereco": "Distrito Industrial - Porto Alegre/RS",
+        "cnpj": "87.654.321/0001-98"
+      },
+      "consignee": {
+        "nome": "Construção Norte S.A.",
+        "endereco": "Av. Construção, 1500 - Manaus/AM",
+        "cnpj": "44.555.666/0001-77"
+      },
+      "porto_embarque": {
+        "codigo": "BRRIG",
+        "nome": "Porto de Rio Grande",
+        "pais": "Brasil"
+      },
+      "porto_descarga": {
+        "codigo": "BRMAO",
+        "nome": "Porto de Manaus",
+        "pais": "Brasil"
+      },
+      "modal_transporte": "RODOVIARIO",
+      "veiculo": {
+        "placa": "ABC-1234",
+        "tipo": "Carreta",
+        "motorista": "João Silva Santos"
+      },
+      "containers": [
+        {
+          "numero": "EFGH9876543",
+          "tipo": "40HC", 
+          "peso_bruto": 28000.0,
+          "lacres": ["LOG456789", "SEAL012345"]
+        }
+      ],
+      "mercadoria": {
+        "descricao": "STEEL STRUCTURES AND PARTS",
+        "peso_bruto": 28000.0,
+        "peso_liquido": 24100.0,
+        "volume": 76.2,
+        "quantidade_volumes": 25,
+        "tipo_embalagem": "BUNDLES",
+        "marcas_numeros": "STEEL/B001-B025"
+      },
+      "frete": {
+        "tipo_pagamento": "COLLECT",
+        "valor": 3500.00,
+        "moeda": "BRL",
+        "local_pagamento": "Manaus"
+      },
+      "data_embarque": "2024-08-02T10:30:00Z",
+      "eta_destino": "2024-08-05T16:00:00Z",
+      "data_entrega": "2024-08-04T15:45:00Z",
+      "status": "DELIVERED",
+      "observacoes": "DELIVERED AHEAD OF SCHEDULE"
+    },
+    {
+      "_id": "bl_003",
+      "bl_number": "MSKU240003",
+      "tipo_bl": "MASTER_BL",
+      "data_emissao": "2024-08-03T14:15:00Z",
+      "armador": {
+        "codigo": "MSK",
+        "nome": "Maersk Line",
+        "endereco": "Terminal Libra - Santos/SP"
+      },
+      "shipper": {
+        "nome": "Exportadora Brasil Ltda",
+        "endereco": "Zona Portuária - Santos/SP", 
+        "cnpj": "76.543.210/0001-87"
+      },
+      "consignee": {
+        "nome": "Importadora Global Inc.",
+        "endereco": "Porto de Salvador - Salvador/BA",
+        "cnpj": "33.444.555/0001-66"
+      },
+      "porto_embarque": {
+        "codigo": "BRSST", 
+        "nome": "Porto de Santos",
+        "pais": "Brasil"
+      },
+      "porto_descarga": {
+        "codigo": "BRSSA",
+        "nome": "Porto de Salvador",
+        "pais": "Brasil"
+      },
+      "navio": {
+        "nome": "MSC Mediterranean",
+        "imo": "9234567",
+        "viagem": "2024-034"
+      },
+      "containers": [
+        {
+          "numero": "MSKU7654321",
+          "tipo": "20RF",
+          "peso_bruto": 19800.0,
+          "lacres": ["MSK987654", "REEFER321987"],
+          "temperatura": -18.0
+        }
+      ],
+      "mercadoria": {
+        "descricao": "FROZEN FOOD PRODUCTS",
+        "peso_bruto": 19800.0,
+        "peso_liquido": 16600.0,
+        "volume": 16.8,
+        "quantidade_volumes": 1000,
+        "tipo_embalagem": "CARTONS",
+        "marcas_numeros": "FROZEN/C001-C1000",
+        "temperatura_requerida": -18.0
+      },
+      "frete": {
+        "tipo_pagamento": "PREPAID",
+        "valor": 4500.00,
+        "moeda": "USD",
+        "local_pagamento": "Santos"
+      },
+      "data_embarque": null,
+      "eta_destino": "2024-08-08T10:00:00Z",
+      "status": "AWAITING_SHIPMENT",
+      "observacoes": "REEFER CONTAINER - MAINTAIN TEMPERATURE -18C"
+    }
+  ]
+}

@@ -1,0 +1,349 @@
+{
+  "collection": "viagens",
+  "description": "Viagens - Programação e acompanhamento de viagens de transporte",
+  "documents": [
+    {
+      "_id": "viagem_001",
+      "codigo_viagem": "VG-2024-001",
+      "transportadora_id": "transp_001",
+      "tipo_transporte": "RODOVIARIO",
+      "veiculo": {
+        "placa": "ABC-1234",
+        "tipo": "Carreta Baú",
+        "capacidade_peso": 30000,
+        "capacidade_volume": 85.5
+      },
+      "motorista": {
+        "nome": "José Silva Santos",
+        "cnh": "12345678901",
+        "telefone": "(11) 98765-4321"
+      },
+      "origem": {
+        "cidade": "São Paulo",
+        "uf": "SP",
+        "endereco": "Rua Industrial, 500 - Guarulhos/SP",
+        "data_coleta": "2024-08-01T14:00:00Z"
+      },
+      "destino": {
+        "cidade": "Rio de Janeiro", 
+        "uf": "RJ",
+        "endereco": "Av. Comercial, 200 - Rio de Janeiro/RJ",
+        "eta": "2024-08-03T18:00:00Z"
+      },
+      "carga": {
+        "peso_total": 18500.0,
+        "volume_total": 45.2,
+        "quantidade_volumes": 150,
+        "valor_mercadoria": 125000.00
+      },
+      "documentos": {
+        "cte_numeros": ["35240512345678901234567890123456789012"],
+        "bl_numeros": ["ABCD240001"],
+        "manifesto": "MAN-2024-001"
+      },
+      "containers": ["ABCD1234567"],
+      "rota": {
+        "distancia_km": 450,
+        "tempo_estimado_horas": 8,
+        "pedagios": 145.50,
+        "combustivel_estimado": 65.5
+      },
+      "status": "EM_TRANSITO",
+      "localizacao_atual": {
+        "latitude": -23.5505,
+        "longitude": -46.6333,
+        "cidade": "São Paulo",
+        "data_ultima_atualizacao": "2024-08-10T14:30:00Z"
+      },
+      "historico_posicoes": [
+        {
+          "data": "2024-08-01T14:00:00Z",
+          "latitude": -23.4567,
+          "longitude": -46.5432,
+          "evento": "COLETA_REALIZADA"
+        },
+        {
+          "data": "2024-08-01T16:30:00Z",
+          "latitude": -23.2345,
+          "longitude": -46.1234,
+          "evento": "PASSAGEM_PEDAGIO"
+        }
+      ],
+      "custos": {
+        "frete": 850.50,
+        "combustivel": 320.00,
+        "pedagios": 145.50,
+        "outros": 50.00
+      },
+      "observacoes": "Material frágil - manuseio cuidadoso"
+    },
+    {
+      "_id": "viagem_002",
+      "codigo_viagem": "VG-2024-002",
+      "transportadora_id": "transp_002",
+      "tipo_transporte": "RODOVIARIO",
+      "veiculo": {
+        "placa": "XYZ-5678",
+        "tipo": "Carreta Prancha",
+        "capacidade_peso": 45000,
+        "capacidade_volume": 120.0
+      },
+      "motorista": {
+        "nome": "Carlos Eduardo Lima",
+        "cnh": "23456789012",
+        "telefone": "(51) 87654-3210"
+      },
+      "origem": {
+        "cidade": "Porto Alegre",
+        "uf": "RS", 
+        "endereco": "Distrito Industrial - Porto Alegre/RS",
+        "data_coleta": "2024-08-02T10:30:00Z"
+      },
+      "destino": {
+        "cidade": "Manaus",
+        "uf": "AM",
+        "endereco": "Av. Construção, 1500 - Manaus/AM",
+        "eta": "2024-08-05T16:00:00Z",
+        "etd": "2024-08-04T15:45:00Z"
+      },
+      "carga": {
+        "peso_total": 28000.0,
+        "volume_total": 76.2,
+        "quantidade_volumes": 25,
+        "valor_mercadoria": 87500.00
+      },
+      "documentos": {
+        "cte_numeros": ["35240512345678901234567890123456789013"],
+        "bl_numeros": ["EFGH240002"],
+        "manifesto": "MAN-2024-002"
+      },
+      "containers": ["EFGH9876543"],
+      "rota": {
+        "distancia_km": 2150,
+        "tempo_estimado_horas": 45,
+        "pedagios": 280.00,
+        "combustivel_estimado": 315.5
+      },
+      "status": "ENTREGUE",
+      "localizacao_atual": {
+        "latitude": -3.1190,
+        "longitude": -60.0217,
+        "cidade": "Manaus",
+        "data_ultima_atualizacao": "2024-08-04T15:45:00Z"
+      },
+      "historico_posicoes": [
+        {
+          "data": "2024-08-02T10:30:00Z",
+          "latitude": -30.0346,
+          "longitude": -51.2177,
+          "evento": "COLETA_REALIZADA"
+        },
+        {
+          "data": "2024-08-02T18:00:00Z",
+          "latitude": -27.5954,
+          "longitude": -48.5480,
+          "evento": "PERNOITE_FLORIANOPOLIS"
+        },
+        {
+          "data": "2024-08-04T15:45:00Z",
+          "latitude": -3.1190,
+          "longitude": -60.0217,
+          "evento": "ENTREGA_REALIZADA"
+        }
+      ],
+      "custos": {
+        "frete": 2350.75,
+        "combustivel": 1250.00,
+        "pedagios": 280.00,
+        "hospedagem": 200.00,
+        "outros": 75.00
+      },
+      "observacoes": "Entrega antecipada conforme solicitado"
+    },
+    {
+      "_id": "viagem_003",
+      "codigo_viagem": "VG-2024-003",
+      "transportadora_id": "transp_003",
+      "tipo_transporte": "AQUAVIARIO",
+      "embarcacao": {
+        "nome": "MSC Mediterranean",
+        "imo": "9234567",
+        "bandeira": "LIBERIA",
+        "capacidade_teu": 8500
+      },
+      "capitao": {
+        "nome": "Captain Roberto Marins",
+        "certificado": "STCW-12345"
+      },
+      "origem": {
+        "porto": "Porto de Santos",
+        "terminal": "Terminal Libra",
+        "berco": "B-15",
+        "data_embarque": null
+      },
+      "destino": {
+        "porto": "Porto de Salvador",
+        "terminal": "Terminal Codeba", 
+        "berco": "B-08",
+        "eta": "2024-08-08T10:00:00Z"
+      },
+      "carga": {
+        "teu_total": 45,
+        "peso_total": 580000.0,
+        "quantidade_containers": 45
+      },
+      "documentos": {
+        "cte_numeros": ["41240512345678901234567890123456789014"],
+        "bl_numeros": ["MSKU240003"],
+        "manifesto": "MAN-MAR-2024-003"
+      },
+      "containers": ["MSKU7654321"],
+      "rota": {
+        "distancia_nm": 650,
+        "tempo_estimado_horas": 48,
+        "combustivel_estimado": 12500.0
+      },
+      "status": "AGUARDANDO_EMBARQUE",
+      "localizacao_atual": {
+        "latitude": -23.9608,
+        "longitude": -46.3331,
+        "porto": "Santos",
+        "data_ultima_atualizacao": "2024-08-10T16:00:00Z"
+      },
+      "condicoes_maritimas": {
+        "altura_onda": 1.2,
+        "velocidade_vento": 15,
+        "visibilidade": "BOA",
+        "estado_mar": "CALMO"
+      },
+      "custos": {
+        "frete": 4500.00,
+        "combustivel": 2800.00,
+        "porto_origem": 450.00,
+        "porto_destino": 380.00,
+        "outros": 125.00
+      },
+      "observacoes": "Carga refrigerada - manter temperatura -18°C"
+    },
+    {
+      "_id": "viagem_004",
+      "codigo_viagem": "VG-2024-004",
+      "transportadora_id": "transp_004",
+      "tipo_transporte": "AEREO",
+      "aeronave": {
+        "prefixo": "PR-ABC",
+        "modelo": "Boeing 737-400F",
+        "capacidade_carga": 15000
+      },
+      "comandante": {
+        "nome": "Cmte. Paulo Henrique Silva",
+        "brevê": "PC-12345"
+      },
+      "origem": {
+        "aeroporto": "Aeroporto Internacional de Guarulhos",
+        "codigo_iata": "GRU",
+        "terminal": "Terminal de Carga 3",
+        "data_embarque": "2024-08-05T10:30:00Z"
+      },
+      "destino": {
+        "aeroporto": "Aeroporto Internacional de Miami", 
+        "codigo_iata": "MIA",
+        "terminal": "Cargo Terminal",
+        "eta": "2024-08-05T18:45:00Z"
+      },
+      "carga": {
+        "peso_total": 8500.0,
+        "volume_total": 45.5,
+        "quantidade_volumes": 250,
+        "valor_mercadoria": 850000.00
+      },
+      "documentos": {
+        "awb_numeros": ["125-12345678"],
+        "manifesto": "MAN-AER-2024-004",
+        "licenca_exportacao": "LE-2024-004"
+      },
+      "rota": {
+        "distancia_km": 7800,
+        "tempo_voo_horas": 8.25,
+        "combustivel_estimado": 4500.0,
+        "altitude_cruzeiro": 37000
+      },
+      "status": "EM_VOO",
+      "localizacao_atual": {
+        "latitude": 15.5833,
+        "longitude": -61.3833,
+        "altitude": 37000,
+        "velocidade": 850,
+        "data_ultima_atualizacao": "2024-08-05T14:15:00Z"
+      },
+      "condicoes_meteorologicas": {
+        "temperatura": -45,
+        "vento": 85,
+        "turbulencia": "LEVE",
+        "visibilidade": "ILIMITADA"
+      },
+      "custos": {
+        "frete": 12500.00,
+        "combustivel": 8500.00,
+        "taxas_aeroportuarias": 850.00,
+        "seguros": 450.00,
+        "outros": 200.00
+      },
+      "observacoes": "Medicamentos controlados - documentação especial"
+    },
+    {
+      "_id": "viagem_005", 
+      "codigo_viagem": "VG-2024-005",
+      "transportadora_id": "transp_005",
+      "tipo_transporte": "FERROVIARIO",
+      "composicao": {
+        "locomotivas": 2,
+        "vagoes": 45,
+        "capacidade_total": 2700000
+      },
+      "maquinista": {
+        "nome": "João Roberto Ferreira",
+        "habilitacao": "HAB-FERRO-12345"
+      },
+      "origem": {
+        "estacao": "Terminal Ferroviário de Sorriso",
+        "codigo": "SOR-001", 
+        "data_embarque": "2024-08-06T08:00:00Z"
+      },
+      "destino": {
+        "estacao": "Terminal Santos Brasil",
+        "codigo": "STS-001",
+        "eta": "2024-08-08T16:00:00Z"
+      },
+      "carga": {
+        "peso_total": 2700000.0,
+        "tipo_mercadoria": "SOJA_GRAOS",
+        "quantidade_toneladas": 2700.0
+      },
+      "documentos": {
+        "cte_numeros": ["51240512345678901234567890123456789015"],
+        "manifesto": "MAN-FERRO-2024-005"
+      },
+      "rota": {
+        "distancia_km": 1200,
+        "tempo_estimado_horas": 56,
+        "combustivel_estimado": 2800.0
+      },
+      "status": "EM_TRANSITO",
+      "localizacao_atual": {
+        "latitude": -15.8267,
+        "longitude": -47.9218,
+        "estacao_proxima": "Brasília",
+        "km_percorridos": 650,
+        "data_ultima_atualizacao": "2024-08-07T12:30:00Z"
+      },
+      "custos": {
+        "frete": 18500.00,
+        "combustivel": 4200.00,
+        "pedaggio_ferroviario": 850.00,
+        "outros": 350.00
+      },
+      "observacoes": "Transporte graneleiro - produto exportação"
+    }
+  ]
+}

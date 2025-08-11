@@ -1,0 +1,15 @@
+services:
+  mit-orchestrator:
+    build: .
+    container_name: mit-python-orchestrator
+    environment:
+      - OLLAMA_BASE_URL=http://localhost:11434
+      - OLLAMA_MODEL=llama3.2:3b
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - .:/app
+      - /app/__pycache__
+    stdin_open: true
+    tty: true
+    network_mode: "host"
+    restart: unless-stopped

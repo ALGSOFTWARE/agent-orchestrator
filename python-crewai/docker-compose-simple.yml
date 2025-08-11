@@ -1,0 +1,44 @@
+services:
+  # Ollama server - sem healthcheck complicado
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mit-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+
+  # MIT Tracking Agent - espera um tempo fixo
+  mit-orchestrator:
+    build: .
+    container_name: mit-python-orchestrator
+    depends_on:
+      - ollama
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama3.2:3b
+      - PYTHONUNBUFFERED=1
+      - CREW_VERBOSE=true
+    volumes:
+      - .:/app
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    # Espera 90s antes de tentar conectar
+    command: >
+      sh -c "
+        echo '⏳ Aguardando Ollama inicializar (90s)...'
+        sleep 90
+        echo '🚀 Iniciando MIT Agent...'
+        python main.py
+      "
+
+volumes:
+  ollama_data:

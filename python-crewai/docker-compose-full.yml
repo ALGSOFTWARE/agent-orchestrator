@@ -1,0 +1,59 @@
+services:
+  # Ollama server rodando em container
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mit-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # Serviço para baixar modelo automaticamente
+  ollama-setup:
+    image: ollama/ollama:latest
+    container_name: mit-ollama-setup
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=ollama:11434
+    command: >
+      sh -c "
+        echo '📥 Baixando modelo llama3.2:3b...'
+        ollama pull llama3.2:3b
+        echo '✅ Modelo baixado com sucesso!'
+      "
+    restart: "no"
+
+  # MIT Tracking Agent
+  mit-orchestrator:
+    build: .
+    container_name: mit-python-orchestrator
+    depends_on:
+      ollama-setup:
+        condition: service_completed_successfully
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama3.2:3b
+      - PYTHONUNBUFFERED=1
+      - CREW_VERBOSE=true
+    volumes:
+      - .:/app
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+# Volume para persistir modelos do Ollama
+volumes:
+  ollama_data:

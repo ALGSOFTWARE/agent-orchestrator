@@ -1,0 +1,144 @@
+{
+  "collection": "cte_documents",
+  "description": "CT-e (Conhecimento de Transporte Eletrônico) - Documentos fiscais de transporte",
+  "documents": [
+    {
+      "_id": "cte_001",
+      "numero_cte": "35240512345678901234567890123456789012",
+      "chave_acesso": "35240512345678901234567890123456789012",
+      "serie": "001",
+      "numero": "000001234",
+      "data_emissao": "2024-08-01T10:30:00Z",
+      "transportadora": {
+        "cnpj": "12.345.678/0001-90",
+        "razao_social": "Transportes Rápido Ltda",
+        "nome_fantasia": "Rápido Express",
+        "endereco": "Av. Logistics, 1000 - São Paulo/SP"
+      },
+      "embarcador": {
+        "cnpj": "98.765.432/0001-10",
+        "razao_social": "Indústria ABC S.A.",
+        "endereco": "Rua Industrial, 500 - Guarulhos/SP"
+      },
+      "destinatario": {
+        "cnpj": "11.222.333/0001-44",
+        "razao_social": "Comércio XYZ Ltda",
+        "endereco": "Av. Comercial, 200 - Rio de Janeiro/RJ"
+      },
+      "origem": {
+        "municipio": "São Paulo",
+        "uf": "SP",
+        "cep": "01234-567"
+      },
+      "destino": {
+        "municipio": "Rio de Janeiro",
+        "uf": "RJ", 
+        "cep": "20000-000"
+      },
+      "modal_transporte": "RODOVIARIO",
+      "tipo_servico": "NORMAL",
+      "valor_total": 850.50,
+      "peso_bruto": 1500.5,
+      "peso_liquido": 1200.0,
+      "quantidade_volumes": 10,
+      "containers": ["ABCD1234567"],
+      "status": "EM_TRANSITO",
+      "data_coleta": "2024-08-01T14:00:00Z",
+      "previsao_entrega": "2024-08-03T18:00:00Z",
+      "observacoes": "Material frágil - manuseio cuidadoso"
+    },
+    {
+      "_id": "cte_002", 
+      "numero_cte": "35240512345678901234567890123456789013",
+      "chave_acesso": "35240512345678901234567890123456789013",
+      "serie": "001",
+      "numero": "000001235",
+      "data_emissao": "2024-08-02T08:15:00Z",
+      "transportadora": {
+        "cnpj": "23.456.789/0001-12",
+        "razao_social": "Logística Nacional S.A.",
+        "nome_fantasia": "LogNacional",
+        "endereco": "Rod. BR-101, KM 200 - Santos/SP"
+      },
+      "embarcador": {
+        "cnpj": "87.654.321/0001-98",
+        "razao_social": "Metalúrgica Sul Ltda",
+        "endereco": "Distrito Industrial - Porto Alegre/RS"
+      },
+      "destinatario": {
+        "cnpj": "44.555.666/0001-77",
+        "razao_social": "Construção Norte S.A.",
+        "endereco": "Av. Construção, 1500 - Manaus/AM"
+      },
+      "origem": {
+        "municipio": "Porto Alegre",
+        "uf": "RS",
+        "cep": "90000-000"
+      },
+      "destino": {
+        "municipio": "Manaus",
+        "uf": "AM",
+        "cep": "69000-000"
+      },
+      "modal_transporte": "RODOVIARIO",
+      "tipo_servico": "EXPRESSO",
+      "valor_total": 2350.75,
+      "peso_bruto": 5500.0,
+      "peso_liquido": 4800.0,
+      "quantidade_volumes": 25,
+      "containers": ["EFGH9876543"],
+      "status": "ENTREGUE",
+      "data_coleta": "2024-08-02T10:30:00Z",
+      "previsao_entrega": "2024-08-05T16:00:00Z",
+      "data_entrega": "2024-08-04T15:45:00Z",
+      "observacoes": "Entrega antecipada conforme solicitado"
+    },
+    {
+      "_id": "cte_003",
+      "numero_cte": "41240512345678901234567890123456789014", 
+      "chave_acesso": "41240512345678901234567890123456789014",
+      "serie": "002",
+      "numero": "000002100",
+      "data_emissao": "2024-08-03T12:45:00Z",
+      "transportadora": {
+        "cnpj": "34.567.890/0001-23",
+        "razao_social": "Marítima Container S.A.",
+        "nome_fantasia": "MarContainer",
+        "endereco": "Porto de Santos - Santos/SP"
+      },
+      "embarcador": {
+        "cnpj": "76.543.210/0001-87",
+        "razao_social": "Exportadora Brasil Ltda",
+        "endereco": "Zona Portuária - Santos/SP"
+      },
+      "destinatario": {
+        "cnpj": "33.444.555/0001-66",
+        "razao_social": "Importadora Global Inc.",
+        "endereco": "Porto de Salvador - Salvador/BA"
+      },
+      "origem": {
+        "municipio": "Santos",
+        "uf": "SP",
+        "cep": "11013-560"
+      },
+      "destino": {
+        "municipio": "Salvador",
+        "uf": "BA",
+        "cep": "40070-110"
+      },
+      "modal_transporte": "AQUAVIARIO",
+      "tipo_servico": "CABOTAGEM",
+      "valor_total": 4500.00,
+      "peso_bruto": 12000.0,
+      "peso_liquido": 10500.0,
+      "quantidade_volumes": 1,
+      "containers": ["MSKU7654321"],
+      "status": "AGUARDANDO_EMBARQUE",
+      "data_coleta": "2024-08-03T16:00:00Z",
+      "previsao_entrega": "2024-08-08T10:00:00Z",
+      "navio": "MSC Mediterranean",
+      "viagem": "2024-033",
+      "observacoes": "Carga refrigerada - manter temperatura -18°C"
+    }
+  ]
+}

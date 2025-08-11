@@ -1,0 +1,196 @@
+{
+  "collection": "containers",
+  "description": "Containers - Rastreamento e informações de containers ISO",
+  "documents": [
+    {
+      "_id": "cont_001",
+      "numero_container": "ABCD1234567",
+      "tipo_iso": "20GP",
+      "tamanho": "20'",
+      "tipo": "Dry Container",
+      "proprietario": "ABC Container Leasing",
+      "operador": "Transportes Rápido Ltda",
+      "status": "EM_TRANSITO",
+      "localizacao_atual": {
+        "latitude": -23.5505,
+        "longitude": -46.6333,
+        "endereco": "Rod. Presidente Dutra, KM 150 - São Paulo/SP",
+        "data_ultima_atualizacao": "2024-08-10T14:30:00Z"
+      },
+      "origem": {
+        "porto": "Porto de Santos",
+        "terminal": "Santos Brasil Terminal",
+        "data_embarque": "2024-08-01T14:00:00Z"
+      },
+      "destino": {
+        "porto": "Porto do Rio de Janeiro",
+        "terminal": "Libra Terminal",
+        "eta": "2024-08-03T18:00:00Z"
+      },
+      "carga": {
+        "tipo_mercadoria": "Produtos Eletrônicos",
+        "peso_bruto": 18500.0,
+        "peso_tara": 2300.0,
+        "peso_liquido": 16200.0,
+        "valor_mercadoria": 125000.00,
+        "temperatura": null,
+        "dangerous_goods": false
+      },
+      "documentos": {
+        "bl_number": "ABCD240001",
+        "booking_number": "BOOK240801001",
+        "cte_associados": ["35240512345678901234567890123456789012"]
+      },
+      "historico_movimentacao": [
+        {
+          "data": "2024-08-01T09:00:00Z",
+          "evento": "GATE_IN",
+          "localizacao": "Terminal Santos Brasil",
+          "observacoes": "Container recebido no terminal"
+        },
+        {
+          "data": "2024-08-01T14:00:00Z",
+          "evento": "LOADED_ON_VESSEL",
+          "localizacao": "Porto de Santos",
+          "navio": "MSC Mediterranean",
+          "observacoes": "Carregado no navio"
+        },
+        {
+          "data": "2024-08-01T18:00:00Z",
+          "evento": "VESSEL_DEPARTURE",
+          "localizacao": "Porto de Santos",
+          "observacoes": "Navio partiu do porto"
+        }
+      ]
+    },
+    {
+      "_id": "cont_002",
+      "numero_container": "EFGH9876543",
+      "tipo_iso": "40HC",
+      "tamanho": "40'",
+      "tipo": "High Cube Container",
+      "proprietario": "Global Container Corp",
+      "operador": "Logística Nacional S.A.",
+      "status": "ENTREGUE",
+      "localizacao_atual": {
+        "latitude": -3.1190,
+        "longitude": -60.0217,
+        "endereco": "Av. Construção, 1500 - Manaus/AM",
+        "data_ultima_atualizacao": "2024-08-04T15:45:00Z"
+      },
+      "origem": {
+        "porto": "Porto de Rio Grande",
+        "terminal": "Tecon Rio Grande",
+        "data_embarque": "2024-08-02T10:30:00Z"
+      },
+      "destino": {
+        "porto": "Porto de Manaus",
+        "terminal": "Super Terminais",
+        "eta": "2024-08-05T16:00:00Z",
+        "etd": "2024-08-04T15:45:00Z"
+      },
+      "carga": {
+        "tipo_mercadoria": "Estruturas Metálicas",
+        "peso_bruto": 28000.0,
+        "peso_tara": 3900.0,
+        "peso_liquido": 24100.0,
+        "valor_mercadoria": 87500.00,
+        "temperatura": null,
+        "dangerous_goods": false
+      },
+      "documentos": {
+        "bl_number": "EFGH240002",
+        "booking_number": "BOOK240802002",
+        "cte_associados": ["35240512345678901234567890123456789013"]
+      },
+      "historico_movimentacao": [
+        {
+          "data": "2024-08-02T08:00:00Z",
+          "evento": "GATE_IN",
+          "localizacao": "Tecon Rio Grande",
+          "observacoes": "Container recebido no terminal"
+        },
+        {
+          "data": "2024-08-02T10:30:00Z",
+          "evento": "LOADED_ON_TRUCK",
+          "localizacao": "Porto de Rio Grande",
+          "veiculo": "ABC-1234",
+          "observacoes": "Carregado no caminhão"
+        },
+        {
+          "data": "2024-08-04T15:45:00Z",
+          "evento": "DELIVERED",
+          "localizacao": "Manaus/AM",
+          "observacoes": "Entregue no destino final"
+        }
+      ]
+    },
+    {
+      "_id": "cont_003",
+      "numero_container": "MSKU7654321",
+      "tipo_iso": "20RF",
+      "tamanho": "20'",
+      "tipo": "Refrigerated Container",
+      "proprietario": "MSK Container Line",
+      "operador": "Marítima Container S.A.",
+      "status": "AGUARDANDO_EMBARQUE",
+      "localizacao_atual": {
+        "latitude": -23.9608,
+        "longitude": -46.3331,
+        "endereco": "Terminal Libra - Porto de Santos/SP",
+        "data_ultima_atualizacao": "2024-08-10T16:00:00Z"
+      },
+      "origem": {
+        "porto": "Porto de Santos",
+        "terminal": "Terminal Libra",
+        "data_embarque": null
+      },
+      "destino": {
+        "porto": "Porto de Salvador",
+        "terminal": "Terminal Codeba",
+        "eta": "2024-08-08T10:00:00Z"
+      },
+      "carga": {
+        "tipo_mercadoria": "Produtos Congelados",
+        "peso_bruto": 19800.0,
+        "peso_tara": 3200.0,
+        "peso_liquido": 16600.0,
+        "valor_mercadoria": 65000.00,
+        "temperatura": -18.0,
+        "dangerous_goods": false
+      },
+      "documentos": {
+        "bl_number": "MSKU240003",
+        "booking_number": "BOOK240803003",
+        "cte_associados": ["41240512345678901234567890123456789014"]
+      },
+      "historico_movimentacao": [
+        {
+          "data": "2024-08-03T12:00:00Z",
+          "evento": "GATE_IN",
+          "localizacao": "Terminal Libra",
+          "observacoes": "Container refrigerado recebido"
+        },
+        {
+          "data": "2024-08-03T16:00:00Z",
+          "evento": "AWAITING_VESSEL",
+          "localizacao": "Porto de Santos",
+          "navio": "MSC Mediterranean",
+          "observacoes": "Aguardando carregamento no navio"
+        }
+      ],
+      "temperatura_historico": [
+        {
+          "data": "2024-08-03T16:00:00Z",
+          "temperatura": -18.0,
+          "status": "OK"
+        },
+        {
+          "data": "2024-08-10T16:00:00Z", 
+          "temperatura": -17.8,
+          "status": "OK"
+        }
+      ]
+    }
+  ]
+}

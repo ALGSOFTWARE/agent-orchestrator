@@ -1,0 +1,5 @@
+# Minimal requirements - deixar pip resolver dependências
+crewai[tools]
+langchain-ollama
+colorama
+python-dotenv
