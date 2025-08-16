@@ -1,0 +1,6 @@
+# Dependências mínimas apenas para API
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+strawberry-graphql[fastapi]>=0.215.0
+python-dotenv>=1.0.0
+pydantic>=2.5.0

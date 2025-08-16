@@ -18,51 +18,79 @@ MIT Tracking é um **sistema de orquestração de agentes de IA** especializado 
 
 ### 🛠 Tecnologias
 - **Backend**: Python 3.11+ com CrewAI e LangChain
+- **API**: FastAPI + GraphQL (Strawberry) + OpenAPI
 - **IA/LLM**: Ollama local (modelo llama3.2:3b)
 - **Banco de Dados**: Sistema mockado MongoDB-like com 40+ registros
 - **Containerização**: Docker + Docker Compose
-- **Ferramentas**: Sistema de consultas especializadas
+- **Ferramentas**: Sistema de consultas especializadas + API GraphQL
 
 ### 🚀 Como Executar
 
 #### Pré-requisitos
 - Docker e Docker Compose instalados
 - 8GB+ RAM disponível
-- Porta 11434 livre
+- Portas 8000 e 11434 livres
 
-#### Método 1: Execução Completa (Recomendado)
+#### Método 1: Sistema Completo (Recomendado)
 ```bash
 # Clonar repositório
 git clone <repo-url>
 cd MIT/python-crewai
 
-# Execução interativa completa (Ollama + Agent em Docker)
-./start-interactive.sh
+# 🚀 Sistema completo: API GraphQL + Agente + Ollama
+./start-complete.sh
 ```
+**Inclui:** GraphQL API + Agente Interativo CLI + LLM Local
 
-#### Método 2: Ollama Local + Agent Docker
+#### Método 2: Apenas API GraphQL
 ```bash
-# Terminal 1: Ollama local
-ollama serve
-ollama pull llama3.2:3b
-
-# Terminal 2: Agent Docker
-./run-local.sh
+# 🌐 Só a API (sem agente interativo CLI)
+./start-api.sh
 ```
+**Inclui:** GraphQL API + Ollama (sem CLI interativo)
 
 #### Método 3: Desenvolvimento Local
 ```bash
-# Instalar dependências
-cd python-crewai
-pip install -r requirements.txt
+# 🛠️ API local + dependências manuais
+./start-api-local.sh
 
-# Executar (requer Ollama local)
+# Ou agente CLI tradicional
 python main.py
+```
+
+#### ⏹️ Parar Todos os Serviços
+```bash
+# Para tudo de uma vez
+./stop-all.sh
 ```
 
 ### 💬 Como Interagir com o Sistema
 
-Após executar, você terá acesso à interface interativa:
+#### 🌐 API GraphQL (Novo!)
+Após `./start-complete.sh` ou `./start-api.sh`:
+
+```bash
+🔗 Endpoints da API:
+• 🎮 GraphQL Playground: http://localhost:8000/graphql
+• 📚 API Docs (Swagger): http://localhost:8000/docs  
+• ✅ Health Check: http://localhost:8000/health
+• 📊 Métricas: http://localhost:8000/metrics
+```
+
+**Exemplo GraphQL Query:**
+```graphql
+query {
+  ctes {
+    numero_cte
+    status  
+    transportadora { nome }
+    containers
+  }
+}
+```
+
+#### 🤖 Agente Interativo CLI
+Após executar, você também terá acesso à interface tradicional:
 
 ```bash
 ============================================================
