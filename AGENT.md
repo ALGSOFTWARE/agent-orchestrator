@@ -240,3 +240,208 @@ This approach maintains backward compatibility while centralizing all AI assista
 - Error handling for connection failures
 - Detailed logs in interactive mode
 - Jest verbose output for test debugging
+
+---
+
+# 🎨 FRONTEND IMPLEMENTATION PLAN - Sistema de Logística Inteligente
+
+## 🎯 Objetivo do Frontend
+Criar um **Dashboard Interativo** para teste dos agentes do sistema de logística inteligente:
+
+1. **🚪 Gatekeeper Agent** - Autenticação e roteamento
+2. **🤖 Agentes Especializados** - Admin, Logistics, Finance  
+3. **📊 Visualização** da comunicação entre agentes
+4. **📋 Testes interativos** de todo o fluxo do sistema
+
+## 🛠️ Stack Tecnológica ATUALIZADA
+
+### Frontend React (SEM TAILWIND)
+```json
+{
+  "framework": "Next.js 14",
+  "styling": "CSS Modules + CSS Custom Properties",
+  "state": "Zustand",
+  "http": "Axios + TanStack Query", 
+  "ui": "Radix UI + Lucide Icons",
+  "charts": "Chart.js + React-Chartjs-2",
+  "forms": "React Hook Form + Zod",
+  "theme": "next-themes"
+}
+```
+
+### Justificativa da Stack ATUALIZADA
+- **Next.js 14:** App Router, SSR, TypeScript nativo
+- **CSS Modules:** Escopo local, performance otimizada (SEM Tailwind)
+- **CSS Custom Properties:** Design system consistente com variáveis CSS
+- **Zustand:** State management simples e performático
+- **Radix UI:** Componentes acessíveis e customizáveis
+
+## 🎨 Design System (baseado em moveintech.com.br)
+- **🎨 Paleta:** Azuis tech, cinzas modernos, acentos verdes
+- **📱 Layout:** Dashboard responsivo com sidebar
+- **⚡ UX:** Foco em "transformar dados em inteligência"
+- **📊 Visualização:** Gráficos e métricas em tempo real
+
+## 🏗️ Arquitetura do Sistema
+```
+🌐 React Frontend :3000 --> 🔀 Nginx Proxy :80
+                                ├── 📊 GraphQL API :8000
+                                └── 🚪 Gatekeeper Agent :8001
+                                      └── 🤖 CrewAI Agents
+                                            └── 🧠 Ollama :11434
+```
+
+## 📁 Estrutura do Projeto
+```
+frontend/
+├── 📁 app/                    # Next.js App Router
+│   ├── 📁 (dashboard)/        # Dashboard routes
+│   │   ├── 📁 agents/         # Testes de agentes
+│   │   ├── 📁 monitoring/     # Monitoramento
+│   │   └── 📁 settings/       # Configurações
+│   ├── 📁 api/               # API routes (proxy)
+│   ├── layout.tsx            # Root layout
+│   └── page.tsx              # Homepage
+├── 📁 components/
+│   ├── 📁 ui/                # Componentes base (Radix)
+│   ├── 📁 agents/            # Componentes específicos
+│   ├── 📁 charts/            # Visualizações
+│   └── 📁 layout/            # Layout components
+├── 📁 lib/
+│   ├── 📁 api/               # Cliente API
+│   ├── 📁 store/             # Zustand stores
+│   ├── 📁 types/             # TypeScript types
+│   └── 📁 utils/             # Utilities
+├── 📁 styles/
+│   ├── globals.css           # Global styles + CSS Variables
+│   └── 📁 modules/           # CSS Modules
+├── docker/
+│   ├── Dockerfile
+│   ├── docker-compose.yml
+│   └── nginx.conf
+└── package.json
+```
+
+## 🚀 Funcionalidades Principais
+
+### 1. 🔐 Simulador de Autenticação
+- Interface para testar roles: Admin, Logistics, Finance, Operator
+- Simulação de permissões diferentes por usuário
+- Visualização de responses do Gatekeeper
+
+### 2. 🤖 Playground de Agentes
+- Chat interface para cada agente especializado
+- Upload de documentos (CT-e, PDFs, imagens)
+- Histórico de conversas por sessão
+- Visualização de capabilities por agente
+
+### 3. 📊 Dashboard de Monitoramento
+- Status em tempo real de todos os serviços
+- Métricas de performance (latência, throughput)
+- Logs visuais das interações entre agentes
+- Health checks automáticos
+
+### 4. 🧪 Centro de Testes
+- Cenários pré-definidos de teste
+- Teste de fluxos completos (auth → agent → response)
+- Comparação de responses entre agentes
+- Export de resultados para relatórios
+
+### 5. 📋 Explorador de API
+- GraphQL Playground integrado
+- REST endpoints com interface amigável
+- Documentação interativa da API
+- Gerador de código para diferentes linguagens
+
+## 🧪 Fluxos de Teste
+
+### Fluxo 1: Teste de Autenticação
+1. **Seleção de usuário** (role + permissões)
+2. **Envio para Gatekeeper** via interface
+3. **Visualização da resposta** com routing info
+4. **Teste de acesso** aos agentes autorizados
+
+### Fluxo 2: Teste de Agente
+1. **Autenticação** bem-sucedida
+2. **Seleção do agente** (Admin/Logistics/Finance)
+3. **Envio de mensagem/documento**
+4. **Visualização da resposta** do CrewAI
+5. **Análise de capabilities** do agente
+
+### Fluxo 3: Teste Completo
+1. **Simulação de usuário real**
+2. **Upload de documento CT-e**
+3. **Processamento pelo agente logística**
+4. **Geração de insights**
+5. **Visualização de métricas**
+
+## 📱 Rotas da Aplicação
+```
+app/
+├── page.tsx                 # → / (Overview)
+├── (dashboard)/
+│   ├── agents/
+│   │   ├── page.tsx         # → /agents (Lista de agentes)
+│   │   ├── [agent]/
+│   │   │   └── page.tsx     # → /agents/admin|logistics|finance
+│   │   └── playground/
+│   │       └── page.tsx     # → /agents/playground
+│   ├── monitoring/
+│   │   ├── page.tsx         # → /monitoring (Dashboard principal)
+│   │   ├── logs/
+│   │   │   └── page.tsx     # → /monitoring/logs
+│   │   └── metrics/
+│   │       └── page.tsx     # → /monitoring/metrics
+│   ├── api-explorer/
+│   │   ├── page.tsx         # → /api-explorer (GraphQL + REST)
+│   │   ├── graphql/
+│   │   │   └── page.tsx     # → /api-explorer/graphql
+│   │   └── rest/
+│   │       └── page.tsx     # → /api-explorer/rest
+│   └── settings/
+│       └── page.tsx         # → /settings
+```
+
+## 🎭 Fases de Implementação
+
+### Fase 1: Setup Base (1-2 dias)
+1. ✅ Inicializar projeto Next.js com TypeScript
+2. ✅ Configurar CSS Modules + CSS Custom Properties (sem Tailwind)
+3. ✅ Setup Docker com nginx proxy
+4. ✅ Integração básica com APIs existentes
+
+### Fase 2: Componentes Core (2-3 dias)
+5. ✅ Dashboard layout responsivo
+6. ✅ Sistema de autenticação mock
+7. ✅ Cliente GraphQL configurado
+8. ✅ Componentes UI base (Radix)
+
+### Fase 3: Funcionalidades (3-4 dias)
+9. ✅ Agent tester interativo
+10. ✅ Monitoring dashboard real-time
+11. ✅ API explorer com playground
+12. ✅ Upload de documentos
+
+### Fase 4: Polimento (1-2 dias)
+13. ✅ Testes automatizados
+14. ✅ Documentação completa
+15. ✅ Deploy scripts finalizados
+16. ✅ Performance optimization
+
+## 📋 TODO List Progress
+- [⏳] Setup base do projeto Next.js com TypeScript
+- [📋] Configurar CSS Modules + CSS Custom Properties (sem Tailwind)
+- [📋] Setup Docker com nginx proxy
+- [📋] Integração básica com APIs existentes
+- [📋] Criar dashboard layout responsivo
+- [📋] Implementar sistema de autenticação mock
+- [📋] Configurar cliente GraphQL
+- [📋] Criar componentes UI base com Radix
+- [📋] Implementar Agent Tester interativo
+- [📋] Criar Monitoring Dashboard real-time
+- [📋] Implementar API Explorer com playground
+- [📋] Adicionar funcionalidade de upload de documentos
+
+---
+
+**🎯 Resultado Final:** Dashboard completo para teste e validação de todos os agentes do sistema, permitindo que as equipes de produto testem fluxos completos de forma visual e interativa!
