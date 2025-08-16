@@ -1,0 +1,109 @@
+version: '3.8'
+
+services:
+  # Ollama Service
+  mit-ollama:
+    image: ollama/ollama:latest
+    container_name: mit-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_ORIGINS=*
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - mit-network
+
+  # MIT Tracking API Service
+  mit-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: mit-api
+    ports:
+      - "8000:8000"  # API Principal
+      - "8001:8001"  # WebSocket (futuro)
+    environment:
+      - OLLAMA_BASE_URL=http://mit-ollama:11434
+      - OLLAMA_MODEL=llama3.2:3b
+      - OLLAMA_TEMPERATURE=0.3
+      - API_PORT=8000
+      - API_HOST=0.0.0.0
+      - ENVIRONMENT=development
+      - API_AUTH_ENABLED=false
+      - DEBUG=true
+    volumes:
+      - ./database:/app/database:ro  # Database somente leitura
+      - ./logs:/app/logs  # Logs da API
+    depends_on:
+      mit-ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - mit-network
+    restart: unless-stopped
+
+  # MIT Interactive Agent (Opcional)
+  mit-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mit-agent
+    environment:
+      - OLLAMA_BASE_URL=http://mit-ollama:11434
+      - OLLAMA_MODEL=llama3.2:3b
+      - CREW_VERBOSE=false
+    volumes:
+      - ./database:/app/database:ro
+    depends_on:
+      mit-ollama:
+        condition: service_healthy
+      mit-api:
+        condition: service_healthy
+    networks:
+      - mit-network
+    profiles:
+      - agent  # Opcional, ativar com --profile agent
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+  # Nginx Proxy (Produção)
+  nginx:
+    image: nginx:alpine
+    container_name: mit-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - mit-api
+    networks:
+      - mit-network
+    profiles:
+      - production  # Apenas em produção
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
+    driver: local
+
+networks:
+  mit-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
