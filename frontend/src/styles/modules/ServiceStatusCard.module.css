@@ -1,0 +1,226 @@
+/* 📡 MIT Logistics Frontend - Service Status Card Styles */
+
+.card {
+  transition: all var(--transition-fast);
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* === HEADER === */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+}
+
+.serviceInfo {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  flex: 1;
+}
+
+.serviceIcon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.url {
+  font-size: var(--font-size-xs);
+  color: var(--color-muted-foreground);
+  font-family: monospace;
+  margin-top: var(--spacing-xs);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-shrink: 0;
+}
+
+.refreshButton {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-xs);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  transition: all var(--transition-fast);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.refreshButton:hover {
+  background: var(--color-muted);
+  border-color: var(--color-primary-300);
+  transform: rotate(180deg);
+}
+
+/* === METRICS === */
+.metrics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+}
+
+.metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.metricLabel {
+  font-size: var(--font-size-xs);
+  color: var(--color-muted-foreground);
+  font-weight: var(--font-weight-medium);
+}
+
+.metricValue {
+  font-size: var(--font-size-xs);
+  color: var(--color-foreground);
+  font-family: monospace;
+}
+
+/* === DETAILS === */
+.details {
+  margin-bottom: var(--spacing-lg);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.detailsTitle {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-foreground);
+  margin-bottom: var(--spacing-sm);
+}
+
+.detailsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.detailItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs);
+  background: var(--color-muted);
+  border-radius: var(--radius-sm);
+}
+
+.detailKey {
+  font-size: var(--font-size-xs);
+  color: var(--color-muted-foreground);
+  font-weight: var(--font-weight-medium);
+  flex-shrink: 0;
+}
+
+.detailValue {
+  font-size: var(--font-size-xs);
+  color: var(--color-foreground);
+  font-family: monospace;
+  word-break: break-all;
+  text-align: right;
+}
+
+/* === STATUS INDICATOR === */
+.statusIndicator {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.indicatorBar {
+  height: 4px;
+  background: var(--color-muted);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.indicatorFill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width var(--transition-normal);
+}
+
+.indicatorFill.healthy {
+  background: linear-gradient(90deg, var(--color-success), var(--color-success-dark));
+}
+
+.indicatorFill.degraded {
+  background: linear-gradient(90deg, var(--color-warning), var(--color-warning-dark));
+}
+
+.indicatorFill.unhealthy {
+  background: linear-gradient(90deg, var(--color-error), var(--color-error-dark));
+}
+
+.indicatorLabel {
+  font-size: var(--font-size-xs);
+  color: var(--color-muted-foreground);
+  text-align: center;
+  font-style: italic;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-sm);
+  }
+  
+  .actions {
+    justify-content: space-between;
+  }
+  
+  .metrics {
+    gap: var(--spacing-xs);
+  }
+  
+  .metric {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+  }
+  
+  .detailItem {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-xs);
+  }
+  
+  .detailValue {
+    text-align: left;
+  }
+}
+
+@media (max-width: 480px) {
+  .serviceInfo {
+    gap: var(--spacing-sm);
+  }
+  
+  .serviceIcon {
+    font-size: var(--font-size-lg);
+  }
+  
+  .refreshButton {
+    width: 24px;
+    height: 24px;
+    font-size: var(--font-size-xs);
+  }
+}

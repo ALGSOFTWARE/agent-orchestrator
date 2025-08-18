@@ -1,0 +1,321 @@
+/* 🌐 MIT Logistics Frontend - Global Header Styles */
+
+.header {
+  background: var(--color-card);
+  border-bottom: 1px solid var(--color-border);
+  z-index: 1000;
+  position: sticky;
+  top: 0;
+  width: 100%;
+}
+
+.headerContent {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  height: var(--header-height, 64px);
+  padding: 0 var(--spacing-lg);
+  gap: var(--spacing-lg);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.headerCenter {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  justify-self: end;
+}
+
+/* === LOGO === */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  text-decoration: none;
+  color: var(--color-foreground);
+  transition: opacity var(--transition-fast);
+}
+
+.logo:hover {
+  opacity: 0.8;
+}
+
+.logoIcon {
+  font-size: 1.5rem;
+}
+
+.logoText {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-normal);
+}
+
+.logoText strong {
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary-600);
+}
+
+/* === API STATUS === */
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-muted);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.statusLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-muted-foreground);
+  white-space: nowrap;
+}
+
+.statusItems {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.statusBadge {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-foreground);
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.statusDot[data-status="healthy"] {
+  background: var(--color-success);
+}
+
+.statusDot[data-status="unhealthy"] {
+  background: var(--color-error);
+}
+
+.statusDot[data-status="checking"] {
+  background: var(--color-warning);
+  animation: pulse 2s infinite;
+}
+
+.refreshButton {
+  background: none;
+  border: 1px solid var(--color-border);
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-xs);
+  transition: all var(--transition-fast);
+}
+
+.refreshButton:hover {
+  background: var(--color-background);
+  border-color: var(--color-primary-300);
+}
+
+/* === USER INFO === */
+.currentUserInfo {
+  display: flex;
+  align-items: center;
+}
+
+.userBadge {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  background: var(--color-primary-50);
+  border: 1px solid var(--color-primary-200);
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: var(--radius-lg);
+}
+
+.userIcon {
+  font-size: var(--font-size-base);
+  background: var(--color-primary-600);
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xs);
+}
+
+.userDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.userName {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-700);
+  line-height: 1.2;
+}
+
+.userRole {
+  font-size: var(--font-size-xs);
+  color: var(--color-primary-600);
+  text-transform: capitalize;
+  line-height: 1.2;
+}
+
+.themeToggle {
+  background: none;
+  border: 1px solid var(--color-border);
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--font-size-base);
+  transition: all var(--transition-fast);
+}
+
+.themeToggle:hover {
+  background: var(--color-muted);
+  border-color: var(--color-primary-300);
+}
+
+.logoutButton {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  background: var(--color-error);
+  color: white;
+  border: none;
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: var(--radius-lg);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-size: var(--font-size-sm);
+}
+
+.logoutButton:hover {
+  background: var(--color-error-600);
+  transform: translateY(-1px);
+}
+
+.logoutIcon {
+  font-size: var(--font-size-base);
+}
+
+.logoutText {
+  font-size: var(--font-size-sm);
+}
+
+.dashboardLink {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  background: var(--color-primary-600);
+  color: white;
+  border: none;
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: var(--radius-lg);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  font-size: var(--font-size-sm);
+}
+
+.dashboardLink:hover {
+  background: var(--color-primary-700);
+  transform: translateY(-1px);
+}
+
+.dashboardIcon {
+  font-size: var(--font-size-base);
+}
+
+.dashboardText {
+  font-size: var(--font-size-sm);
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 768px) {
+  .headerContent {
+    grid-template-columns: auto auto;
+    gap: var(--spacing-md);
+    padding: 0 var(--spacing-md);
+  }
+
+  .headerCenter {
+    display: none;
+  }
+
+  .headerRight {
+    gap: var(--spacing-sm);
+  }
+
+  .userBadge {
+    padding: var(--spacing-xs);
+  }
+
+  .userName {
+    display: none;
+  }
+
+  .logoutText {
+    display: none;
+  }
+
+  .dashboardText {
+    display: none;
+  }
+
+  .logoText {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .headerContent {
+    padding: 0 var(--spacing-sm);
+  }
+
+  .headerRight {
+    gap: var(--spacing-xs);
+  }
+
+  .userRole {
+    display: none;
+  }
+
+  .themeToggle {
+    display: none;
+  }
+}
+
+/* === ANIMATIONS === */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
