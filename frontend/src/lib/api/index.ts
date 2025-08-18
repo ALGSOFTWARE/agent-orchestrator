@@ -4,6 +4,7 @@
 export * from './client'
 export * from './gatekeeper'
 export * from './graphql'
+export * from './crud'
 
 // Main API client instances
 export { 

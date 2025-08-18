@@ -225,3 +225,161 @@ class ChatInput:
     session_id: Optional[str] = None
     user_id: Optional[str] = None
     preferred_provider: Optional[str] = None
+
+
+# === DATABASE COLLECTION SCHEMAS === #
+
+@strawberry.type
+class User:
+    """Usuário do sistema"""
+    id: str
+    name: str
+    email: str
+    role: str
+    client: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+    last_login: Optional[datetime] = None
+    login_count: int
+
+
+@strawberry.type
+class Client:
+    """Cliente/Empresa"""
+    id: str
+    name: str
+    cnpj: Optional[str] = None
+    address: Optional[str] = None
+    contacts: List[str]
+    created_at: datetime
+
+
+@strawberry.type
+class ContainerDB:
+    """Container do banco de dados"""
+    id: str
+    container_number: str
+    type: Optional[str] = None
+    current_status: str
+    location: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+@strawberry.type
+class ShipmentDB:
+    """Embarque/Shipment"""
+    id: str
+    client_id: str
+    container_ids: List[str]
+    status: str
+    departure_port: Optional[str] = None
+    arrival_port: Optional[str] = None
+    etd: Optional[datetime] = None
+    eta: Optional[datetime] = None
+    delivery_date: Optional[datetime] = None
+    created_at: datetime
+
+
+@strawberry.type
+class TrackingEventDB:
+    """Evento de rastreamento"""
+    id: str
+    container_id: Optional[str] = None
+    shipment_id: Optional[str] = None
+    type: str
+    description: Optional[str] = None
+    timestamp: datetime
+    location: Optional[str] = None
+    source: str
+
+
+@strawberry.type
+class ContextDB:
+    """Contexto de conversas"""
+    id: str
+    user_id: str
+    session_id: Optional[str] = None
+    input: str
+    output: str
+    agents_involved: List[str]
+    timestamp: datetime
+    metadata: Optional[str] = None
+    response_time: Optional[float] = None
+
+
+@strawberry.type
+class DatabaseStatsQL:
+    """Estatísticas do banco de dados"""
+    users: int
+    clients: int
+    containers: int
+    shipments: int
+    tracking_events: int
+    contexts: int
+    active_users: int
+    timestamp: str
+
+
+# === INPUT TYPES FOR MUTATIONS === #
+
+@strawberry.input
+class UserInput:
+    """Input para criar/atualizar usuário"""
+    name: str
+    email: str
+    role: str
+    client_id: Optional[str] = None
+
+
+@strawberry.input
+class ClientInput:
+    """Input para criar/atualizar cliente"""
+    name: str
+    cnpj: Optional[str] = None
+    address: Optional[str] = None
+    contacts: Optional[List[str]] = None
+
+
+@strawberry.input
+class ContainerDBInput:
+    """Input para criar/atualizar container"""
+    container_number: str
+    type: Optional[str] = None
+    current_status: str
+    location: Optional[str] = None
+
+
+@strawberry.input
+class ShipmentDBInput:
+    """Input para criar/atualizar shipment"""
+    client_id: str
+    container_ids: Optional[List[str]] = None
+    status: Optional[str] = None
+    departure_port: Optional[str] = None
+    arrival_port: Optional[str] = None
+    etd: Optional[datetime] = None
+    eta: Optional[datetime] = None
+
+
+@strawberry.input
+class TrackingEventDBInput:
+    """Input para criar/atualizar tracking event"""
+    container_id: Optional[str] = None
+    shipment_id: Optional[str] = None
+    type: str
+    description: Optional[str] = None
+    location: Optional[str] = None
+    source: Optional[str] = None
+
+
+@strawberry.input
+class ContextDBInput:
+    """Input para criar/atualizar context"""
+    user_id: str
+    session_id: Optional[str] = None
+    input: str
+    output: str
+    agents_involved: Optional[List[str]] = None
+    metadata: Optional[str] = None
+    response_time: Optional[float] = None

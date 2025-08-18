@@ -9,13 +9,28 @@ import json
 import strawberry
 from strawberry.types import Info
 
-from database.db_manager import get_database
+# from database.db_manager import get_database  # Legacy - usando MongoDB Atlas via Gatekeeper API
+
+# Mock temporário para manter compatibilidade
+def get_database():
+    """Mock temporário - dados são agora gerenciados via Gatekeeper API + MongoDB Atlas"""
+    return {
+        'ctes': [],
+        'containers': [],
+        'bls': [],
+        'transportadoras': [],
+        'embarcadores': [],
+        'viagens': []
+    }
 from .schemas import (
     CTe, Container, BL, Embarcador, Viagem, LogisticsStats,
     CTeInput, ContainerInput, BLInput, PosicaoGPSInput,
     Transportadora, Endereco, PosicaoGPS,
-    ChatMessage, ChatResponse, ChatInput
+    ChatMessage, ChatResponse, ChatInput,
+    User, Client, ContainerDB, ShipmentDB, TrackingEventDB, ContextDB, DatabaseStatsQL,
+    UserInput, ClientInput, ContainerDBInput, ShipmentDBInput, TrackingEventDBInput, ContextDBInput
 )
+from .crud_resolvers import CRUDQuery, CRUDMutation
 
 # Import do MIT Agent v2 (sempre usar versão simulada para testes)
 import sys
@@ -134,6 +149,86 @@ class Query:
         """Teste básico da API"""
         return "MIT Tracking GraphQL API está funcionando! 🚚"
     
+    # === CRUD DATABASE QUERIES === #
+    
+    @strawberry.field
+    async def database_stats(self) -> DatabaseStatsQL:
+        """Estatísticas do banco de dados"""
+        crud_query = CRUDQuery()
+        return await crud_query.database_stats()
+    
+    @strawberry.field
+    async def users(self, limit: Optional[int] = 100, skip: Optional[int] = 0, role: Optional[str] = None) -> List[User]:
+        """Lista usuários do banco"""
+        crud_query = CRUDQuery()
+        return await crud_query.users(limit=limit, skip=skip, role=role)
+    
+    @strawberry.field
+    async def user(self, user_id: str) -> Optional[User]:
+        """Busca usuário por ID"""
+        crud_query = CRUDQuery()
+        return await crud_query.user(user_id=user_id)
+    
+    @strawberry.field
+    async def clients(self, limit: Optional[int] = 100, skip: Optional[int] = 0) -> List[Client]:
+        """Lista clientes do banco"""
+        crud_query = CRUDQuery()
+        return await crud_query.clients(limit=limit, skip=skip)
+    
+    @strawberry.field
+    async def client(self, client_id: str) -> Optional[Client]:
+        """Busca cliente por ID"""
+        crud_query = CRUDQuery()
+        return await crud_query.client(client_id=client_id)
+    
+    @strawberry.field
+    async def containers_db(self, limit: Optional[int] = 100, skip: Optional[int] = 0, status: Optional[str] = None) -> List[ContainerDB]:
+        """Lista containers do banco"""
+        crud_query = CRUDQuery()
+        return await crud_query.containers_db(limit=limit, skip=skip, status=status)
+    
+    @strawberry.field
+    async def container_db(self, container_id: str) -> Optional[ContainerDB]:
+        """Busca container por ID"""
+        crud_query = CRUDQuery()
+        return await crud_query.container_db(container_id=container_id)
+    
+    @strawberry.field
+    async def shipments(self, limit: Optional[int] = 100, skip: Optional[int] = 0, status: Optional[str] = None) -> List[ShipmentDB]:
+        """Lista shipments do banco"""
+        crud_query = CRUDQuery()
+        return await crud_query.shipments(limit=limit, skip=skip, status=status)
+    
+    @strawberry.field
+    async def shipment(self, shipment_id: str) -> Optional[ShipmentDB]:
+        """Busca shipment por ID"""
+        crud_query = CRUDQuery()
+        return await crud_query.shipment(shipment_id=shipment_id)
+    
+    @strawberry.field
+    async def tracking_events(self, limit: Optional[int] = 100, skip: Optional[int] = 0, type: Optional[str] = None) -> List[TrackingEventDB]:
+        """Lista eventos de rastreamento do banco"""
+        crud_query = CRUDQuery()
+        return await crud_query.tracking_events(limit=limit, skip=skip, type=type)
+    
+    @strawberry.field
+    async def tracking_event(self, event_id: str) -> Optional[TrackingEventDB]:
+        """Busca evento por ID"""
+        crud_query = CRUDQuery()
+        return await crud_query.tracking_event(event_id=event_id)
+    
+    @strawberry.field
+    async def contexts(self, limit: Optional[int] = 100, skip: Optional[int] = 0, user_id: Optional[str] = None) -> List[ContextDB]:
+        """Lista contextos do banco"""
+        crud_query = CRUDQuery()
+        return await crud_query.contexts(limit=limit, skip=skip, user_id=user_id)
+    
+    @strawberry.field
+    async def context(self, context_id: str) -> Optional[ContextDB]:
+        """Busca contexto por ID"""
+        crud_query = CRUDQuery()
+        return await crud_query.context(context_id=context_id)
+    
     @strawberry.field
     def ctes(self) -> List[CTe]:
         """Lista todos os CT-e"""
@@ -217,6 +312,56 @@ class Query:
 @strawberry.type
 class Mutation:
     """GraphQL Mutations para operações logísticas"""
+    
+    # === CRUD DATABASE MUTATIONS === #
+    
+    @strawberry.field
+    async def create_user(self, user_input: UserInput) -> User:
+        """Cria novo usuário"""
+        crud_mutation = CRUDMutation()
+        return await crud_mutation.create_user(user_input=user_input)
+    
+    @strawberry.field
+    async def update_user(self, user_id: str, user_input: UserInput) -> Optional[User]:
+        """Atualiza usuário"""
+        crud_mutation = CRUDMutation()
+        return await crud_mutation.update_user(user_id=user_id, user_input=user_input)
+    
+    @strawberry.field
+    async def delete_user(self, user_id: str, soft_delete: Optional[bool] = True) -> bool:
+        """Remove usuário"""
+        crud_mutation = CRUDMutation()
+        return await crud_mutation.delete_user(user_id=user_id, soft_delete=soft_delete)
+    
+    @strawberry.field
+    async def create_client(self, client_input: ClientInput) -> Client:
+        """Cria novo cliente"""
+        crud_mutation = CRUDMutation()
+        return await crud_mutation.create_client(client_input=client_input)
+    
+    @strawberry.field
+    async def create_container_db(self, container_input: ContainerDBInput) -> ContainerDB:
+        """Cria novo container"""
+        crud_mutation = CRUDMutation()
+        return await crud_mutation.create_container(container_input=container_input)
+    
+    @strawberry.field
+    async def create_shipment(self, shipment_input: ShipmentDBInput) -> ShipmentDB:
+        """Cria novo shipment"""
+        crud_mutation = CRUDMutation()
+        return await crud_mutation.create_shipment(shipment_input=shipment_input)
+    
+    @strawberry.field
+    async def create_tracking_event(self, event_input: TrackingEventDBInput) -> TrackingEventDB:
+        """Cria novo evento de rastreamento"""
+        crud_mutation = CRUDMutation()
+        return await crud_mutation.create_tracking_event(event_input=event_input)
+    
+    @strawberry.field
+    async def create_context(self, context_input: ContextDBInput) -> ContextDB:
+        """Cria novo contexto"""
+        crud_mutation = CRUDMutation()
+        return await crud_mutation.create_context(context_input=context_input)
     
     @strawberry.field
     def create_cte(self, cte_input: CTeInput) -> CTe:
