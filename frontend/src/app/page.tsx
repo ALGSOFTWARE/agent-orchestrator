@@ -133,7 +133,7 @@ export default function HomePage() {
               <div className={styles.featureIcon}>📎</div>
               <h3>Upload de Documentos</h3>
               <p>Teste processamento de CT-e, PDFs e imagens</p>
-              <Link href="/agents?tab=upload" className={styles.featureLink}>
+              <Link href="/documents" className={styles.featureLink}>
                 Upload →
               </Link>
             </div>
