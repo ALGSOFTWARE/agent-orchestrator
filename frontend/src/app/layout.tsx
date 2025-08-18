@@ -3,6 +3,7 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { ToastContainer } from '@/components/ui'
+import { GlobalHeader } from '@/components/layout/GlobalHeader'
 import '@/styles/globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -25,6 +26,7 @@ export default function RootLayout({
     <html lang="pt-BR" data-theme="light">
       <body className={inter.className}>
         <div id="root">
+          <GlobalHeader />
           {children}
         </div>
         <div id="modal-root" />

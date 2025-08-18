@@ -4,7 +4,8 @@
 
 import { ReactNode, useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { useCurrentUser } from '@/lib/store/auth'
 import styles from '@/styles/modules/DashboardLayout.module.css'
 
 interface DashboardLayoutProps {
@@ -30,13 +31,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const pathname = usePathname()
+  const router = useRouter()
+  const currentUser = useCurrentUser()
 
   // Close mobile menu when route changes
   useEffect(() => {
     setMobileMenuOpen(false)
   }, [pathname])
 
-  // Handle escape key to close mobile menu
+  // Handle escape key to close menus
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -45,75 +48,60 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     }
 
     document.addEventListener('keydown', handleEscape)
-    return () => document.removeEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('keydown', handleEscape)
+    }
   }, [])
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!currentUser) {
+      router.push('/')
+    }
+  }, [currentUser, router])
+
 
   return (
     <div className={styles.layout}>
-      {/* Header */}
+      {/* Dashboard Header */}
       <header className={styles.header}>
         <div className={styles.headerContent}>
-          {/* Mobile menu button */}
-          <button
-            className={styles.mobileMenuButton}
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Toggle menu"
-          >
-            <span className={styles.hamburger}>
-              <span></span>
-              <span></span>
-              <span></span>
-            </span>
-          </button>
-
-          {/* Logo */}
-          <Link href="/" className={styles.logo}>
-            <span className={styles.logoIcon}>🚛</span>
-            <span className={styles.logoText}>
-              MIT <strong>Logistics</strong>
-            </span>
-          </Link>
-
-          {/* Desktop sidebar toggle */}
-          <button
-            className={styles.sidebarToggle}
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            aria-label="Toggle sidebar"
-          >
-            {sidebarCollapsed ? '→' : '←'}
-          </button>
-
-          {/* Header actions */}
-          <div className={styles.headerActions}>
-            {/* System status indicator */}
-            <div className={styles.statusIndicator} title="System Status">
-              <div className={styles.statusDot} data-status="checking">
-                <div className={styles.pulse}></div>
-              </div>
-              <span className={styles.statusText}>Sistema</span>
-            </div>
-
-            {/* Theme toggle */}
+          {/* Left section */}
+          <div className={styles.headerLeft}>
+            {/* Mobile menu button */}
             <button
-              className={styles.themeToggle}
-              aria-label="Toggle theme"
-              onClick={() => {
-                const html = document.documentElement
-                const currentTheme = html.getAttribute('data-theme')
-                html.setAttribute('data-theme', currentTheme === 'dark' ? 'light' : 'dark')
-              }}
+              className={styles.mobileMenuButton}
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle menu"
             >
-              🌙
+              <span className={styles.hamburger}>
+                <span></span>
+                <span></span>
+                <span></span>
+              </span>
             </button>
 
-            {/* User info */}
-            <div className={styles.userInfo}>
-              <div className={styles.userAvatar}>👤</div>
-              <div className={styles.userDetails}>
-                <span className={styles.userName}>Teste User</span>
-                <span className={styles.userRole}>Admin</span>
-              </div>
+            {/* Dashboard title */}
+            <div className={styles.dashboardTitle}>
+              <span className={styles.dashboardIcon}>🎛️</span>
+              <span className={styles.dashboardText}>Dashboard</span>
             </div>
+
+            {/* Desktop sidebar toggle */}
+            <button
+              className={styles.sidebarToggle}
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              aria-label="Toggle sidebar"
+            >
+              {sidebarCollapsed ? '→' : '←'}
+            </button>
+          </div>
+
+          {/* Right section - Just return to home link */}
+          <div className={styles.headerRight}>
+            <Link href="/" className={styles.backToHome} title="Voltar à página inicial">
+              ← Início
+            </Link>
           </div>
         </div>
       </header>
@@ -183,6 +171,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 )}
               </Link>
               <Link
+                href="/settings/llm"
+                className={styles.quickAction}
+                title="Configurar LLM"
+              >
+                <span className={styles.quickActionIcon}>🧠</span>
+                {!sidebarCollapsed && (
+                  <span className={styles.quickActionLabel}>LLM Config</span>
+                )}
+              </Link>
+              <Link
                 href="/monitoring/logs"
                 className={styles.quickAction}
                 title="Logs do sistema"
@@ -201,8 +199,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {!sidebarCollapsed && (
             <>
               <div className={styles.sidebarFooterInfo}>
-                <div className={styles.version}>v1.0.0</div>
-                <div className={styles.environment}>Development</div>
+                <div className={styles.version}>v2.0.0</div>
+                <div className={styles.environment}>OpenAI + Gemini</div>
               </div>
               <Link
                 href="/"
