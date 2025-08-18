@@ -15,7 +15,7 @@ from .resolvers import Query, Mutation
 from .middleware import AuthMiddleware, LoggingMiddleware
 
 # Import das configurações
-from config import config
+# from config import config  # Legacy - removido durante limpeza
 
 # Import opcional do MIT Agent v2
 try:

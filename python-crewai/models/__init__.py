@@ -1,14 +1,20 @@
 """
-Types and data structures for MIT Tracking Orchestrator
+Database Models - Sistema de Logística Inteligente
+
+Este módulo define os modelos de dados para o sistema:
+- Legacy models para compatibilidade
+- Database models para persistência
 """
 
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, EmailStr
+from beanie import Document, Link
 
 
+# Legacy models (mantidos para compatibilidade)
 class AgentState(Enum):
     """Estados possíveis do agente"""
     INITIALIZING = "initializing"
@@ -70,3 +76,106 @@ class ConversationHistory:
     session_id: str
     start_time: datetime
     last_activity: datetime
+
+
+# Database Models using Beanie (MongoDB ODM)
+class Client(Document):
+    """Modelo para clientes/empresas"""
+    name: str
+    cnpj: Optional[str] = None
+    address: Optional[str] = None
+    contacts: List[dict] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Settings:
+        name = "clients"
+
+
+class User(Document):
+    """Modelo para usuários do sistema"""
+    name: str
+    email: EmailStr
+    role: str  # "admin" | "logistics" | "finance" | "operator"
+    client: Optional[Link[Client]] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    last_login: Optional[datetime] = None
+
+    class Settings:
+        name = "users"
+
+
+class Container(Document):
+    """Modelo para containers de transporte"""
+    container_number: str = Field(..., unique=True)
+    type: Optional[str] = None
+    current_status: str
+    location: Optional[dict] = None  # {lat, lng, portCode}
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Settings:
+        name = "containers"
+
+
+class Shipment(Document):
+    """Modelo para embarques/fretes"""
+    client: Link[Client]
+    containers: List[Link[Container]] = Field(default_factory=list)
+    status: str = "in_transit"  # "in_transit" | "delivered" | "delayed"
+    departure_port: Optional[str] = None
+    arrival_port: Optional[str] = None
+    etd: Optional[datetime] = None
+    eta: Optional[datetime] = None
+    delivery_date: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Settings:
+        name = "shipments"
+
+
+class TrackingEvent(Document):
+    """Modelo para eventos de rastreamento"""
+    container: Optional[Link[Container]] = None
+    shipment: Optional[Link[Shipment]] = None
+    type: str  # "loaded" | "departed" | "arrived" | "delayed" | "incident"
+    description: Optional[str] = None
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    location: Optional[dict] = None  # {lat, lng, portCode}
+    source: str = "system"  # "system" | "manual" | "external_api"
+
+    class Settings:
+        name = "tracking_events"
+
+
+class Context(Document):
+    """Modelo para histórico de contexto/interações dos usuários"""
+    user_id: str
+    session_id: Optional[str] = None
+    input: str
+    output: str
+    agents_involved: List[str] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    metadata: Optional[dict] = Field(default_factory=dict)
+
+    class Settings:
+        name = "contexts"
+
+
+# Export all models
+__all__ = [
+    # Legacy models
+    "AgentState",
+    "QueryType", 
+    "AgentStats",
+    "OllamaConfig",
+    "LogisticsQuery",
+    "AgentResponse",
+    "ConversationHistory",
+    # Database models
+    "User",
+    "Client",
+    "Container", 
+    "Shipment",
+    "TrackingEvent",
+    "Context"
+]

@@ -8,6 +8,7 @@ MIT Tracking é um agente conversacional especializado em consultas logísticas,
 - **Language**: TypeScript (strict mode)
 - **AI Framework**: CrewAI + LangChain
 - **LLM**: OpenAI (GPT-3.5-turbo, GPT-4) + Google Gemini (Pro) com roteamento inteligente
+- **Database**: MongoDB + Beanie ODM (Python) para persistência
 - **Testing**: Jest with TypeScript support
 - **Containerization**: Docker
 - **Build Tool**: TypeScript Compiler (tsc) + tsx for development
@@ -16,95 +17,103 @@ MIT Tracking é um agente conversacional especializado em consultas logísticas,
 
 ```
 MIT/
-├── src/
-│   ├── agents/
-│   │   └── MITTrackingAgent.ts     # Core logistics agent
-│   ├── types/
-│   │   └── index.ts                # TypeScript definitions
-│   ├── utils/
-│   │   └── InterfaceInterativa.ts  # Interactive CLI interface
-│   ├── index.ts                    # Main CrewAI entry point
-│   ├── interactive-agent.ts        # Interactive CLI mode
-│   └── simple-agent.ts             # Demo/testing mode
-├── tests/
-│   ├── unit/                       # Unit tests
-│   ├── integration/               # Integration tests
-│   ├── mocks/                     # Test mocks
-│   └── setup.ts                   # Test configuration
-├── agents/                        # Legacy JS agents (being migrated)
-├── Dockerfile                     # Production container
-└── package.json
+├── frontend/                       # Next.js 14 React Dashboard
+│   ├── src/app/                   # App Router (pages)
+│   ├── src/components/            # UI components & features
+│   ├── src/lib/                   # API clients, store, utils
+│   ├── src/styles/                # CSS Modules & global styles
+│   └── package.json              # Frontend dependencies
+├── gatekeeper-api/                # Authentication & Routing API
+│   ├── app/
+│   │   ├── database.py            # MongoDB connection & config
+│   │   ├── models.py              # Database models & schemas
+│   │   ├── routes/                # API endpoints
+│   │   └── services/              # Business logic services
+│   └── requirements.txt           # Python dependencies
+├── python-crewai/                 # CrewAI Agents Backend
+│   ├── api/                       # GraphQL API server
+│   ├── agents/                    # Specialized AI agents
+│   ├── models/                    # Database models (Beanie ODM)
+│   ├── tools/                     # Logistics tools
+│   └── requirements.txt           # Python dependencies
+├── .env                           # Environment variables
+├── start-system.sh                # System startup script
+└── CLAUDE.md                      # This documentation
 ```
 
 ## Build & Development Commands
 
-### Development
+### System Startup
 ```bash
-# Install dependencies
-npm install
+# Start complete system (recommended)
+./start-system.sh
 
-# Start interactive agent (main mode)
-npm start
-
-# Development with hot reload
-npm run dev
-
-# Demo mode (single query)
-npm run demo
-
-# CrewAI mode
-npm run crewai
+# System includes:
+# - MongoDB Atlas (cloud database)
+# - Gatekeeper API (port 8001)
+# - CrewAI API (port 8000)  
+# - React Frontend (port 3000)
 ```
 
-### Build & Type Checking
+### Development (Individual Services)
 ```bash
-# Build TypeScript to dist/
-npm run build
+# Frontend development
+cd frontend && npm run dev
 
-# Type check without emitting files
-npm run typecheck
+# Gatekeeper API
+cd gatekeeper-api && python -m uvicorn app.main:app --reload --port 8001
+
+# CrewAI Backend
+cd python-crewai && python -m uvicorn api.main:app --reload --port 8000
 ```
 
-### Testing
+### Frontend Commands
 ```bash
-# Run all tests
-npm test
-
-# Run tests in watch mode
-npm run test:watch
-
-# Run with coverage report
-npm run test:coverage
-
-# Verbose test output
-npm run test:verbose
+cd frontend/
+npm install          # Install dependencies
+npm run dev         # Development server
+npm run build       # Production build
+npm run start       # Production server
 ```
 
-### Docker
+### API Development
 ```bash
-# Build container
-docker build -t crewai-llm .
+# Install Python dependencies
+cd gatekeeper-api && pip install -r requirements.txt
+cd python-crewai && pip install -r requirements.txt
 
-# Run container with API keys
-docker run -it --rm -e OPENAI_API_KEY="$OPENAI_API_KEY" -e GEMINI_API_KEY="$GEMINI_API_KEY" crewai-llm
+# Run individual APIs
+python -m uvicorn app.main:app --reload --port 8001  # Gatekeeper
+python -m uvicorn api.main:app --reload --port 8000  # CrewAI
 ```
 
 ## Development Environment
 
 ### Prerequisites
 1. **Node.js 22+** - Required runtime
-2. **OpenAI/Gemini API Keys**:
+2. **MongoDB** - Database server
+3. **Python 3.11+** - Para Beanie ODM e APIs Python
+4. **OpenAI/Gemini API Keys**:
    ```bash
    export OPENAI_API_KEY="sk-..."
    export GEMINI_API_KEY="AIza..."
    ```
 
-### Environment Configuration
-- **OpenAI API**: GPT-3.5-turbo, GPT-4 models
-- **Gemini API**: Gemini Pro model  
-- **Routing Strategy**: Automatic based on task type
-- **Temperature**: `0.3` (precise responses for logistics)
-- **Max Daily Cost**: `$50` per provider (configurable)
+### Environment Configuration (.env file)
+```bash
+# Database
+MONGODB_URL=mongodb+srv://dev:JiCoKnCCu6pHpIwZ@dev.fednd1d.mongodb.net/?retryWrites=true&w=majority&appName=dev
+DATABASE_NAME=mit_logistics
+
+# LLM APIs
+OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=AIza...
+
+# Configuration
+ROUTING_STRATEGY=automatic    # Automatic based on task type
+TEMPERATURE=0.3              # Precise responses for logistics
+MAX_DAILY_COST=50            # $50 per provider (configurable)
+```
 
 ## Code Style & Standards
 
@@ -129,6 +138,7 @@ docker run -it --rm -e OPENAI_API_KEY="$OPENAI_API_KEY" -e GEMINI_API_KEY="$GEMI
 - **Agents**: Core logic in `src/agents/`
 - **Utils**: Helper functions in `src/utils/`
 - **Tests**: Mirror src structure in `tests/`
+- **Database Models**: `python-crewai/models/__init__.py` e `gatekeeper-api/app/models.py`
 
 ## Agent Specialization
 
@@ -152,15 +162,16 @@ O MITTrackingAgent é especializado em:
 
 ### Response Characteristics
 - **Domain-specific**: Focused on logistics terminology
-- **Contextual**: Maintains conversation history
+- **Contextual**: Maintains conversation history via MongoDB
 - **Precise**: Low temperature for accurate information
 - **Bilingual**: Portuguese primary, English support
+- **Persistent**: All interactions saved for learning and context
 
 ## Testing Strategy
 
 ### Test Structure
 - **Unit tests**: Individual component testing
-- **Integration tests**: Ollama connection, agent responses
+- **Integration tests**: Database connections, agent responses
 - **Smoke tests**: Basic functionality verification
 - **Mocks**: Isolated testing without external dependencies
 
@@ -172,27 +183,38 @@ npm run test:verbose -- tests/unit/smoke.test.ts
 # Test specific agent
 npm run test:verbose -- tests/unit/mitTrackingAgent.test.ts
 
-# Integration with Ollama
-npm run test:verbose -- tests/integration/ollama-connection.test.ts
+# Integration with database
+npm run test:verbose -- tests/integration/database-connection.test.ts
 ```
 
 ## Deployment
 
 ### Local Development
-1. Ensure Ollama is running with required models
-2. Run `npm start` for interactive mode
-3. Use `npm run dev` for development with hot reload
+1. Configure `.env` file with MongoDB Atlas and API keys
+2. Run `./start-system.sh` to start all services
+3. Access frontend at `http://localhost:3000`
 
-### Docker Deployment
-1. Build image: `docker build -t crewai-ollama .`
-2. Ensure host Ollama is accessible
-3. Run: `docker run -it --rm crewai-ollama`
+### Production Deployment
+1. **Frontend**: Build and deploy React app
+   ```bash
+   cd frontend && npm run build
+   ```
+2. **APIs**: Deploy Python FastAPI services
+   ```bash
+   # Gatekeeper API
+   cd gatekeeper-api && python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
+   
+   # CrewAI API
+   cd python-crewai && python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
+   ```
 
 ### Production Considerations
-- Ollama must be running and accessible
-- Models must be pre-downloaded
-- Container networking configured for Ollama access
-- Resource allocation appropriate for LLM inference
+- **MongoDB Atlas**: Cloud database already configured
+- **Environment Variables**: Configure production .env securely
+- **Reverse Proxy**: Use Nginx for load balancing and SSL
+- **Health Monitoring**: APIs include `/health` endpoints
+- **Cost Management**: Monitor LLM API usage and costs
+- **Database Backups**: MongoDB Atlas handles automatic backups
 
 ## Migration Commands
 
@@ -231,9 +253,10 @@ This approach maintains backward compatibility while centralizing all AI assista
 
 ### Common Issues
 1. **API Keys**: Ensure OpenAI and/or Gemini API keys are properly configured
-2. **Rate Limits**: Monitor daily cost limits and request quotas
-3. **TypeScript Errors**: Run `npm run typecheck` for detailed errors
-4. **Test Failures**: Check API availability for integration tests
+2. **Database Connection**: Verify MongoDB is running and accessible
+3. **Rate Limits**: Monitor daily cost limits and request quotas
+4. **TypeScript Errors**: Run `npm run typecheck` for detailed errors
+5. **Test Failures**: Check API and database availability for integration tests
 
 ### Logging
 - Agent responses include provider information and token usage
@@ -241,6 +264,95 @@ This approach maintains backward compatibility while centralizing all AI assista
 - LLM routing statistics and cost tracking
 - Jest verbose output for test debugging
 - Real-time monitoring via `/settings/llm` dashboard
+- Database operations logging for troubleshooting
+
+## Database Architecture
+
+### MongoDB + Beanie ODM
+O sistema utiliza **MongoDB** como banco de dados principal com **Beanie ODM** (Object Document Mapper) para Python, proporcionando uma interface assíncrona e typada para operações de banco de dados.
+
+### Database Models
+
+#### Core Models
+- **User**: Usuários do sistema com autenticação e roles (admin, logistics, finance, operator)
+- **Client**: Empresas/clientes que utilizam o sistema
+- **Context**: Histórico de interações e conversas dos usuários com os agentes
+- **Container**: Containers de transporte com rastreamento
+- **Shipment**: Embarques/fretes associados aos containers
+- **TrackingEvent**: Eventos de rastreamento ao longo da cadeia logística
+
+#### Database Configuration
+```python
+# Configurações principais
+MONGODB_URL = "mongodb://localhost:27017"
+DATABASE_NAME = "mit_logistics"
+
+# Modelos inicializados automaticamente
+document_models = [User, Client, Context, Container, Shipment, TrackingEvent]
+```
+
+### Key Features
+
+#### 1. **Beanie ODM Integration**
+- **Async/Await**: Operações assíncronas nativas
+- **Type Safety**: Modelos tipados com Pydantic
+- **Auto-indexing**: Criação automática de índices para performance
+- **Relationships**: Suporte a links entre documentos
+
+#### 2. **Gatekeeper API Database Service**
+- **Connection Management**: Inicialização e health checks
+- **Index Creation**: Índices otimizados para consultas frequentes
+- **Service Layer**: `DatabaseService` com operações comuns
+
+#### 3. **Context Persistence**
+- **User Context**: Histórico completo de interações por usuário
+- **Session Tracking**: Agrupamento de conversas por sessão
+- **Agent Tracking**: Registro de quais agentes foram envolvidos
+- **Metadata Storage**: Dados adicionais flexíveis por interação
+
+### Database Operations
+
+#### Essential Services
+```python
+# Health Check
+await DatabaseService.health_check()
+
+# User Operations  
+user = await DatabaseService.get_user_by_email("user@example.com")
+new_user = await DatabaseService.create_user("Name", "email@test.com", "logistics")
+
+# Context Operations
+context = await DatabaseService.add_context(
+    user_id="user123",
+    input_text="Onde está meu container?",
+    output_text="Container ABCD1234 está em Santos/SP",
+    agents=["logistics-agent"],
+    session_id="sess123"
+)
+
+# Get User History
+history = await DatabaseService.get_user_context("user123", limit=50)
+```
+
+### Database Indexes
+
+#### Performance Optimizations
+- **Users**: `email` (unique), `role`
+- **Context**: `user_id + timestamp`, `session_id` 
+- **Containers**: `container_number` (unique), `current_status`
+- **Shipments**: `status`, `client`, `created_at`
+- **TrackingEvents**: `container`, `shipment`, `timestamp`, `type`
+
+### Environment Variables
+```bash
+# Database Configuration (MongoDB Atlas)
+MONGODB_URL="mongodb+srv://dev:JiCoKnCCu6pHpIwZ@dev.fednd1d.mongodb.net/?retryWrites=true&w=majority&appName=dev"
+DATABASE_NAME="mit_logistics"
+
+# Database has 405+ documents populated:
+# - 30 clients, 50 users, 40 containers
+# - 35 shipments, 150 tracking events, 100+ contexts
+```
 
 ---
 
@@ -285,11 +397,14 @@ Criar um **Dashboard Interativo** para teste dos agentes do sistema de logístic
 
 ## 🏗️ Arquitetura do Sistema
 ```
-🌐 React Frontend :3000 --> 🔀 Nginx Proxy :80
-                                ├── 📊 GraphQL API :8000
-                                └── 🚪 Gatekeeper Agent :8001
-                                      └── 🤖 CrewAI Agents
-                                            └── 🧠 Ollama :11434
+🌐 React Frontend :3000 ──────┐
+                              ├─► 🚪 Gatekeeper API :8001 ──┐
+                              │   (Auth & Routing)         │
+                              └─► 📊 CrewAI API :8000 ─────┤
+                                  (GraphQL & Agents)      │
+                                                          │
+                              🗄️ MongoDB Atlas ◄─────────┘
+                                 (mit_logistics DB)
 ```
 
 ## 📁 Estrutura do Projeto
@@ -445,4 +560,4 @@ app/
 
 ---
 
-**🎯 Resultado Final:** Dashboard completo para teste e validação de todos os agentes do sistema, permitindo que as equipes de produto testem fluxos completos de forma visual e interativa!
+**🎯 Goal**: Create intelligent logistics agents with persistent memory, multi-model LLM routing, and comprehensive testing for enterprise-grade logistics tracking and management.
