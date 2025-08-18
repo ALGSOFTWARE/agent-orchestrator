@@ -114,7 +114,7 @@ class ApiClient {
     }
 
     // Gatekeeper endpoints
-    if (path.includes('/auth-callback')) {
+    if (path.includes('/gatekeeper/auth-callback')) {
       return {
         status: 'success',
         message: 'Authentication successful (mock)',
@@ -132,7 +132,7 @@ class ApiClient {
       }
     }
 
-    if (path.includes('/info')) {
+    if (path.includes('/gatekeeper/info')) {
       return {
         service: 'Gatekeeper Agent',
         version: '1.0.0',
@@ -144,11 +144,11 @@ class ApiClient {
           'finance': 'Financial Agent',
           'operator': 'MIT Tracking Agent'
         },
-        endpoints: ['/auth-callback', '/health', '/info', '/roles']
+        endpoints: ['/gatekeeper/auth-callback', '/gatekeeper/health', '/gatekeeper/info', '/gatekeeper/roles']
       }
     }
 
-    if (path.includes('/roles')) {
+    if (path.includes('/gatekeeper/roles')) {
       return {
         available_roles: ['admin', 'logistics', 'finance', 'operator'],
         role_permissions: {
@@ -286,7 +286,7 @@ export async function checkServiceHealth(service: 'api' | 'gatekeeper' | 'ollama
         break
       case 'gatekeeper':
         client = gatekeeperClient
-        endpoint = '/health'
+        endpoint = '/gatekeeper/health'
         break
       case 'ollama':
         client = ollamaClient

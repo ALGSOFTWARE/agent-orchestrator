@@ -190,3 +190,38 @@ class PosicaoGPSInput:
     longitude: float
     velocidade: Optional[float] = None
     endereco: Optional[str] = None
+
+
+# === Chat Schemas ===
+
+@strawberry.type
+class ChatMessage:
+    """Mensagem do chat com agente"""
+    id: str
+    content: str
+    role: str  # 'user' ou 'agent'
+    timestamp: datetime
+    agent_type: Optional[str] = None
+    session_id: Optional[str] = None
+    provider: Optional[str] = None  # 'openai', 'gemini'
+    tokens_used: Optional[int] = None
+    response_time: Optional[float] = None
+    confidence: Optional[float] = None
+
+
+@strawberry.type
+class ChatResponse:
+    """Resposta do agente com metadados"""
+    message: ChatMessage
+    success: bool
+    error: Optional[str] = None
+    agent_stats: Optional[str] = None
+
+
+@strawberry.input
+class ChatInput:
+    """Input para enviar mensagem ao agente"""
+    message: str
+    session_id: Optional[str] = None
+    user_id: Optional[str] = None
+    preferred_provider: Optional[str] = None

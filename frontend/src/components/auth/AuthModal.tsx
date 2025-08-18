@@ -3,6 +3,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuthStore, useCurrentUser, useAuthLoading, useAuthError } from '@/lib/store/auth'
 import { TEST_USERS } from '@/lib/api/gatekeeper'
 import type { UserRole, AuthPayload } from '@/types'
@@ -25,6 +26,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const currentUser = useCurrentUser()
   const isLoading = useAuthLoading()
   const error = useAuthError()
+  const router = useRouter()
 
   // Close modal if user is authenticated
   if (currentUser && isOpen) {
@@ -35,6 +37,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     try {
       await loginWithTestUser(userType)
       onClose()
+      // Redirect to agents page after successful login
+      router.push('/agents')
     } catch (error) {
       // Error is handled by store
     }
@@ -58,6 +62,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
       await login(payload)
       onClose()
+      // Redirect to agents page after successful login
+      router.push('/agents')
     } catch (error) {
       // Error is handled by store
     }
@@ -107,14 +113,47 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
         {error && (
           <div className={styles.error}>
-            <span className={styles.errorIcon}>⚠️</span>
-            {error}
-            <button 
-              className={styles.errorClose}
-              onClick={clearError}
-            >
-              ✕
-            </button>
+            <div className={styles.errorHeader}>
+              <span className={styles.errorIcon}>🚨</span>
+              <span className={styles.errorTitle}>Erro de Autenticação</span>
+              <button 
+                className={styles.errorClose}
+                onClick={clearError}
+              >
+                ✕
+              </button>
+            </div>
+            <div className={styles.errorMessage}>
+              {error}
+            </div>
+            <div className={styles.errorDebug}>
+              <details className={styles.errorDetails}>
+                <summary>🔧 Debug Info (Dev Panel)</summary>
+                <div className={styles.debugContent}>
+                  <div className={styles.debugItem}>
+                    <strong>Timestamp:</strong> {new Date().toISOString()}
+                  </div>
+                  <div className={styles.debugItem}>
+                    <strong>Gatekeeper URL:</strong> {process.env.NEXT_PUBLIC_GATEKEEPER_URL}
+                  </div>
+                  <div className={styles.debugItem}>
+                    <strong>Error Type:</strong> {error.includes('403') ? 'Forbidden (Role/Permissions)' : 
+                                                  error.includes('422') ? 'Invalid Data' :
+                                                  error.includes('404') ? 'Endpoint Not Found' :
+                                                  error.includes('500') ? 'Internal Server Error' : 'Generic Error'}
+                  </div>
+                  <div className={styles.debugItem}>
+                    <strong>Backend Status:</strong> 
+                    <button 
+                      className={styles.debugButton}
+                      onClick={() => window.open(process.env.NEXT_PUBLIC_GATEKEEPER_URL + '/health', '_blank')}
+                    >
+                      Check Backend Health
+                    </button>
+                  </div>
+                </div>
+              </details>
+            </div>
           </div>
         )}
 

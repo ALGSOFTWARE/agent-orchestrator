@@ -204,14 +204,12 @@ export function DocumentUpload({
             disabled={isUploading || files.length >= maxFiles}
           />
           
-          <Button
-            as="label"
+          <label 
             htmlFor="file-upload"
-            disabled={isUploading || files.length >= maxFiles}
-            className={styles.uploadButton}
+            className={`${styles.uploadButton} ${(isUploading || files.length >= maxFiles) ? styles.disabled : ''}`}
           >
             {isUploading ? 'Enviando...' : 'Selecionar Arquivos'}
-          </Button>
+          </label>
         </div>
       </div>
 

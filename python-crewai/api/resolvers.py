@@ -5,6 +5,7 @@ Integra com o banco de dados mockado e MIT Tracking Agent
 
 from datetime import datetime
 from typing import List, Optional
+import json
 import strawberry
 from strawberry.types import Info
 
@@ -12,8 +13,24 @@ from database.db_manager import get_database
 from .schemas import (
     CTe, Container, BL, Embarcador, Viagem, LogisticsStats,
     CTeInput, ContainerInput, BLInput, PosicaoGPSInput,
-    Transportadora, Endereco, PosicaoGPS
+    Transportadora, Endereco, PosicaoGPS,
+    ChatMessage, ChatResponse, ChatInput
 )
+
+# Import do MIT Agent v2 (sempre usar versão simulada para testes)
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'agents'))
+
+try:
+    from mock_mit_agent_v2 import MockMITTrackingAgentV2, create_mock_agent
+    MIT_AGENT_V2_AVAILABLE = True
+    MIT_AGENT_MOCK_MODE = True
+    print("✅ MIT Agent v2 simulado carregado")
+except ImportError as e:
+    MIT_AGENT_V2_AVAILABLE = False
+    MIT_AGENT_MOCK_MODE = False
+    print(f"❌ Erro ao carregar MIT Agent v2 simulado: {e}")
 
 
 def convert_db_to_cte(cte_data: dict) -> CTe:
@@ -189,6 +206,12 @@ class Query:
             ctes_entregues=ctes_entregues,
             valor_total_fretes=valor_total_fretes
         )
+    
+    @strawberry.field
+    def chat_test_connection(self) -> bool:
+        """Testa se o agente MIT Tracking v2 está disponível"""
+        agent = get_or_create_agent()
+        return agent is not None and agent.is_ready
 
 
 @strawberry.type
@@ -281,3 +304,166 @@ class Mutation:
                     return convert_db_to_cte(cte)
         
         return None
+    
+    @strawberry.field
+    async def chat_with_agent(self, chat_input: ChatInput) -> ChatResponse:
+        """Envia mensagem para o MIT Tracking Agent v2"""
+        
+        # Validações
+        if not chat_input.message.strip():
+            return ChatResponse(
+                message=ChatMessage(
+                    id=f"error_{datetime.now().timestamp()}",
+                    content="Mensagem não pode estar vazia",
+                    role="system",
+                    timestamp=datetime.now()
+                ),
+                success=False,
+                error="Mensagem vazia"
+            )
+        
+        # Obter agente
+        agent = get_or_create_agent(chat_input.preferred_provider)
+        if not agent:
+            return ChatResponse(
+                message=ChatMessage(
+                    id=f"error_{datetime.now().timestamp()}",
+                    content="❌ Agente MIT Tracking v2 não está disponível. Verifique as configurações de API.",
+                    role="system", 
+                    timestamp=datetime.now()
+                ),
+                success=False,
+                error="Agente não disponível"
+            )
+        
+        try:
+            # Processar consulta
+            start_time = datetime.now()
+            response_content = await agent.consultar_logistica(chat_input.message)
+            end_time = datetime.now()
+            
+            # Extrair metadados da resposta
+            provider = None
+            tokens_used = None
+            response_time = (end_time - start_time).total_seconds()
+            
+            # Parse da resposta para extrair metadados (formato: "resposta\n\n🧠 _Processado via provider (tokens, tempo)_")
+            if "🧠 _Processado via" in response_content:
+                parts = response_content.split("🧠 _Processado via")
+                if len(parts) == 2:
+                    content = parts[0].strip()
+                    metadata_part = parts[1]
+                    
+                    # Extrair provider
+                    if "openai" in metadata_part.lower():
+                        provider = "openai"
+                    elif "gemini" in metadata_part.lower():
+                        provider = "gemini"
+                    
+                    # Extrair tokens
+                    import re
+                    token_match = re.search(r'(\d+)\s*tokens', metadata_part)
+                    if token_match:
+                        tokens_used = int(token_match.group(1))
+                else:
+                    content = response_content
+            else:
+                content = response_content
+            
+            # Criar mensagem de resposta
+            message = ChatMessage(
+                id=f"agent_{datetime.now().timestamp()}",
+                content=content,
+                role="agent",
+                timestamp=datetime.now(),
+                agent_type="mit-tracking-v2",
+                session_id=chat_input.session_id or agent.get_session_id(),
+                provider=provider,
+                tokens_used=tokens_used,
+                response_time=response_time,
+                confidence=0.9  # Placeholder
+            )
+            
+            # Obter estatísticas do agente
+            stats = agent.get_stats()
+            if isinstance(stats, dict):
+                # Agente simulado retorna dict
+                agent_stats = json.dumps(stats)
+            else:
+                # Agente real retorna objeto com atributos
+                agent_stats = json.dumps({
+                    "total_queries": getattr(stats, 'total_queries', 0),
+                    "successful_queries": getattr(stats, 'successful_queries', 0),
+                    "error_count": getattr(stats, 'error_count', 0),
+                    "average_response_time": getattr(stats, 'average_response_time', 0.0),
+                    "session_duration": getattr(stats, 'session_duration', 0.0)
+                })
+            
+            return ChatResponse(
+                message=message,
+                success=True,
+                agent_stats=agent_stats
+            )
+            
+        except Exception as e:
+            error_msg = str(e)
+            print(f"❌ Erro no chat: {error_msg}")
+            
+            return ChatResponse(
+                message=ChatMessage(
+                    id=f"error_{datetime.now().timestamp()}",
+                    content=f"❌ Erro interno: {error_msg}",
+                    role="system",
+                    timestamp=datetime.now(),
+                    session_id=chat_input.session_id
+                ),
+                success=False,
+                error=error_msg
+            )
+
+
+# === Chat Functions ===
+
+# Instância global do agente (cache)
+if MIT_AGENT_V2_AVAILABLE:
+    if 'MIT_AGENT_MOCK_MODE' in globals() and MIT_AGENT_MOCK_MODE:
+        _global_agent: Optional[MockMITTrackingAgentV2] = None
+    else:
+        _global_agent: Optional[MITTrackingAgentV2] = None
+else:
+    _global_agent = None
+
+def get_or_create_agent(preferred_provider: Optional[str] = None):
+    """Obtém ou cria instância do agente MIT Tracking v2"""
+    global _global_agent
+    
+    if not MIT_AGENT_V2_AVAILABLE:
+        return None
+    
+    if _global_agent is None:
+        try:
+            if 'MIT_AGENT_MOCK_MODE' in globals() and MIT_AGENT_MOCK_MODE:
+                # Usar versão simulada
+                _global_agent = create_mock_agent(preferred_provider)
+                print("✅ MIT Agent v2 simulado criado")
+            else:
+                # Usar versão real
+                provider = None
+                if preferred_provider:
+                    if preferred_provider.lower() == 'openai':
+                        provider = LLMProvider.OPENAI
+                    elif preferred_provider.lower() == 'gemini':
+                        provider = LLMProvider.GEMINI
+                
+                _global_agent = MITTrackingAgentV2(preferred_provider=provider)
+                print("✅ MIT Agent v2 real criado")
+        except Exception as e:
+            print(f"❌ Erro ao criar agente: {e}")
+            return None
+    
+    return _global_agent
+
+
+# Instância global de Query e Mutation
+query_instance = None
+mutation_instance = None

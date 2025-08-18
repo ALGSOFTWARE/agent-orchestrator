@@ -112,64 +112,57 @@ install_dependencies() {
             sudo systemctl enable nginx
         fi
         
-        # Instalar Ollama
-        if ! command -v ollama &> /dev/null; then
-            curl -fsSL https://ollama.ai/install.sh | sh
-        fi
-        
         # Verificar instalações
         echo "✅ Node.js: $(node --version)"
         echo "✅ Python: $(python3.9 --version)"
         echo "✅ Docker: $(docker --version)"
         echo "✅ Docker Compose: $(docker-compose --version)"
         echo "✅ Nginx: $(nginx -v 2>&1)"
-        echo "✅ Ollama: $(ollama --version 2>/dev/null || echo 'Instalado')"
 EOF
 
     log_success "Dependências instaladas com sucesso"
 }
 
-# Configurar Ollama e baixar modelos
-setup_ollama() {
-    log_info "Configurando Ollama e baixando modelos..."
+# Configurar APIs e variáveis de ambiente
+setup_api_keys() {
+    log_info "Configurando APIs LLM..."
 
-    ssh -i "$EC2_KEY" "$EC2_USER@$EC2_HOST" << 'EOF'
+    # Verificar se as API keys foram fornecidas
+    if [ -z "$OPENAI_API_KEY" ] && [ -z "$GEMINI_API_KEY" ]; then
+        log_error "Nenhuma API key configurada!"
+        log_info "Configure pelo menos uma das variáveis:"
+        log_info "  export OPENAI_API_KEY='sk-...'"
+        log_info "  export GEMINI_API_KEY='AIza...'"
+        exit 1
+    fi
+
+    ssh -i "$EC2_KEY" "$EC2_USER@$EC2_HOST" << EOF
         set -e
         
-        # Iniciar Ollama em background
-        nohup ollama serve > /dev/null 2>&1 &
-        sleep 10
-        
-        # Baixar modelos necessários
-        ollama pull llama3.2:3b
-        ollama pull mistral
-        
-        # Verificar modelos baixados
-        ollama list
-        
-        # Criar service systemd para Ollama
-        sudo tee /etc/systemd/system/ollama.service << 'SERVICE'
-[Unit]
-Description=Ollama Service
-After=network.target
+        # Criar arquivo de variáveis de ambiente
+        cat > /home/ubuntu/.env.llm << 'ENVFILE'
+# MIT Logistics - LLM API Configuration
+OPENAI_API_KEY=${OPENAI_API_KEY:-}
+GEMINI_API_KEY=${GEMINI_API_KEY:-}
 
-[Service]
-Type=simple
-User=ubuntu
-WorkingDirectory=/home/ubuntu
-ExecStart=/usr/local/bin/ollama serve
-Restart=always
-RestartSec=3
+# Default LLM settings
+LLM_PREFERRED_PROVIDER=auto
+LLM_MAX_DAILY_COST=50
+LLM_TEMPERATURE=0.3
+LLM_MAX_TOKENS=1000
+ENVFILE
 
-[Install]
-WantedBy=multi-user.target
-SERVICE
-
-        sudo systemctl enable ollama
-        sudo systemctl start ollama
+        # Verificar APIs configuradas
+        if [ ! -z "${OPENAI_API_KEY:-}" ]; then
+            echo "✅ OpenAI API Key configurada"
+        fi
+        
+        if [ ! -z "${GEMINI_API_KEY:-}" ]; then
+            echo "✅ Gemini API Key configurada"
+        fi
 EOF
 
-    log_success "Ollama configurado e modelos baixados"
+    log_success "APIs LLM configuradas"
 }
 
 # Deploy da aplicação
@@ -212,8 +205,10 @@ deploy_application() {
 NODE_ENV=production
 NEXT_PUBLIC_API_URL=https://api.mitlogistics.com
 NEXT_PUBLIC_GATEKEEPER_URL=https://gatekeeper.mitlogistics.com
-NEXT_PUBLIC_OLLAMA_URL=http://localhost:11434
 PYTHONPATH=/home/ubuntu/mit-logistics/python-crewai
+
+# Load LLM API keys
+source /home/ubuntu/.env.llm
 ENVFILE
 
         # Criar docker-compose para produção
@@ -241,10 +236,9 @@ services:
       - "8001:8001"
     environment:
       - PYTHONPATH=/app
-      - OLLAMA_HOST=http://host.docker.internal:11434
+    env_file:
+      - /home/ubuntu/.env.llm
     restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
   nginx:
     image: nginx:alpine
@@ -383,9 +377,12 @@ create_management_scripts() {
 #!/bin/bash
 echo "🚀 Iniciando MIT Logistics em produção..."
 
-# Iniciar Ollama
-sudo systemctl start ollama
-sleep 5
+# Verificar se as API keys estão configuradas
+source /home/ubuntu/.env.llm
+if [ -z "$OPENAI_API_KEY" ] && [ -z "$GEMINI_API_KEY" ]; then
+    echo "❌ Nenhuma API key configurada! Configure em /home/ubuntu/.env.llm"
+    exit 1
+fi
 
 # Iniciar aplicações via Docker Compose
 docker-compose -f docker-compose.prod.yml up -d
@@ -416,8 +413,18 @@ echo "🐳 Docker Containers:"
 docker-compose -f docker-compose.prod.yml ps
 
 echo ""
-echo "🧠 Ollama:"
-systemctl status ollama --no-pager -l
+echo "🧠 LLM APIs:"
+source /home/ubuntu/.env.llm
+if [ ! -z "$OPENAI_API_KEY" ]; then
+    echo "✅ OpenAI API configurada"
+else
+    echo "❌ OpenAI API não configurada"
+fi
+if [ ! -z "$GEMINI_API_KEY" ]; then
+    echo "✅ Gemini API configurada"
+else
+    echo "❌ Gemini API não configurada"
+fi
 
 echo ""
 echo "🌐 Nginx:"
@@ -444,10 +451,21 @@ elif [ "$1" = "backend" ]; then
     docker-compose -f docker-compose.prod.yml logs -f backend
 elif [ "$1" = "nginx" ]; then
     sudo journalctl -u nginx -f
-elif [ "$1" = "ollama" ]; then
-    sudo journalctl -u ollama -f
+elif [ "$1" = "llm" ]; then
+    echo "📊 Status das APIs LLM:"
+    source /home/ubuntu/.env.llm
+    if [ ! -z "$OPENAI_API_KEY" ]; then
+        echo "✅ OpenAI API: Configurada"
+    else
+        echo "❌ OpenAI API: Não configurada"
+    fi
+    if [ ! -z "$GEMINI_API_KEY" ]; then
+        echo "✅ Gemini API: Configurada"
+    else
+        echo "❌ Gemini API: Não configurada"
+    fi
 else
-    echo "Uso: ./logs.sh [frontend|backend|nginx|ollama]"
+    echo "Uso: ./logs.sh [frontend|backend|nginx|llm]"
     echo "Ou: docker-compose -f docker-compose.prod.yml logs -f"
 fi
 LOGS
@@ -581,7 +599,7 @@ main() {
     # Executar deploy
     check_requirements
     install_dependencies
-    setup_ollama
+    setup_api_keys
     deploy_application
     configure_nginx
     setup_ssl

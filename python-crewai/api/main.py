@@ -4,6 +4,7 @@ FastAPI + GraphQL + OpenAPI integration
 """
 
 import os
+from datetime import datetime
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from strawberry.fastapi import GraphQLRouter
@@ -13,14 +14,16 @@ from contextlib import asynccontextmanager
 from .resolvers import Query, Mutation
 from .middleware import AuthMiddleware, LoggingMiddleware
 
-# Import opcional do MIT Agent
+# Import das configurações
+from config import config
+
+# Import opcional do MIT Agent v2
 try:
-    from agents.mit_tracking_agent import MITTrackingAgent
-    from models import OllamaConfig
+    from agents.mit_tracking_agent_v2 import MITTrackingAgentV2
     MIT_AGENT_AVAILABLE = True
 except ImportError:
     MIT_AGENT_AVAILABLE = False
-    print("⚠️  MIT Agent não disponível - API funcionará sem integração LLM")
+    print("⚠️  MIT Agent v2 não disponível - API funcionará sem integração LLM")
 
 
 # GraphQL Schema
@@ -214,6 +217,114 @@ async def metrics():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao obter métricas: {str(e)}")
 
+
+# === GATEKEEPER ENDPOINTS === #
+
+from pydantic import BaseModel
+from typing import List, Optional
+
+class AuthPayload(BaseModel):
+    userId: str
+    role: str
+    permissions: List[str]
+    sessionId: str
+    timestamp: str
+
+class GatekeeperResponse(BaseModel):
+    status: str
+    message: str
+    agent: Optional[str] = None
+    data: Optional[dict] = None
+
+@app.post("/gatekeeper/auth-callback")
+async def gatekeeper_auth_callback(payload: AuthPayload):
+    """Simulador do Gatekeeper Agent para autenticação"""
+    # Validar role
+    valid_roles = ["admin", "logistics", "finance", "operator"]
+    if payload.role not in valid_roles:
+        raise HTTPException(status_code=422, detail=f"Role inválida: {payload.role}")
+    
+    # Validar permissões por role
+    role_permissions = {
+        "admin": ["*"],
+        "logistics": ["read:cte", "write:document", "read:container", "write:tracking", "read:shipment"],
+        "finance": ["read:financial", "write:financial", "read:payment", "write:payment", "read:billing"],
+        "operator": ["read:cte", "write:document", "read:container"]
+    }
+    
+    expected_permissions = role_permissions.get(payload.role, [])
+    if payload.role != "admin" and not all(perm in expected_permissions for perm in payload.permissions):
+        # Simulate invalid permissions scenario
+        if payload.userId == "invalid_005":
+            raise HTTPException(status_code=403, detail="Permissões inválidas para a role especificada")
+    
+    # Mapear agente por role
+    agent_mapping = {
+        "admin": "Admin Agent",
+        "logistics": "MIT Tracking Agent",
+        "finance": "Finance Agent", 
+        "operator": "MIT Tracking Agent"
+    }
+    
+    return GatekeeperResponse(
+        status="success",
+        message=f"Usuário {payload.userId} autenticado com sucesso",
+        agent=agent_mapping.get(payload.role),
+        data={
+            "user_context": {
+                "userId": payload.userId,
+                "role": payload.role,
+                "permissions": payload.permissions,
+                "sessionId": payload.sessionId,
+                "authenticated_at": payload.timestamp
+            }
+        }
+    )
+
+@app.get("/gatekeeper/roles")
+async def gatekeeper_get_roles():
+    """Obtém roles disponíveis e suas permissões"""
+    return {
+        "available_roles": ["admin", "logistics", "finance", "operator"],
+        "role_permissions": {
+            "admin": ["*"],
+            "logistics": ["read:cte", "write:document", "read:container", "write:tracking", "read:shipment"],
+            "finance": ["read:financial", "write:financial", "read:payment", "write:payment", "read:billing"],
+            "operator": ["read:cte", "write:document", "read:container"]
+        }
+    }
+
+@app.get("/gatekeeper/info")
+async def gatekeeper_info():
+    """Informações do Gatekeeper Agent"""
+    return {
+        "service": "Gatekeeper Agent",
+        "version": "1.0.0",
+        "description": "Controlador de acesso e roteamento para agentes especializados",
+        "supported_roles": ["admin", "logistics", "finance", "operator"],
+        "agent_mapping": {
+            "admin": "Admin Agent",
+            "logistics": "MIT Tracking Agent",
+            "finance": "Finance Agent",
+            "operator": "MIT Tracking Agent"
+        },
+        "endpoints": [
+            "/gatekeeper/auth-callback",
+            "/gatekeeper/roles",
+            "/gatekeeper/info",
+            "/gatekeeper/health"
+        ]
+    }
+
+@app.get("/gatekeeper/health")
+async def gatekeeper_health():
+    """Health check do Gatekeeper Agent"""
+    return {
+        "status": "healthy",
+        "service": "Gatekeeper Agent",
+        "timestamp": datetime.now().isoformat(),
+        "version": "1.0.0"
+    }
 
 # REST Endpoints adicionais para compatibilidade
 @app.get("/api/v1/ctes")

@@ -21,6 +21,7 @@ interface NavItem {
 
 const navigationItems: NavItem[] = [
   { href: '/agents', label: 'Agentes de IA', icon: '🤖' },
+  { href: '/chat', label: 'Sandbox de Agentes', icon: '💬', badge: 'Público' },
   { href: '/monitoring', label: 'Monitoramento', icon: '📊', badge: 'Live' },
   { href: '/api-explorer', label: 'API Explorer', icon: '🔍' },
   { href: '/documents', label: 'Documentos', icon: '📁' },
