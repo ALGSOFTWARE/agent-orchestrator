@@ -16,34 +16,44 @@ interface UploadedDocument {
   category: 'cte' | 'bl' | 'invoice' | 'other'
 }
 
+interface FileFromUploader {
+    id: string;
+    name: string;
+    size: number;
+    type: string;
+    status: 'uploading' | 'completed' | 'error';
+    url?: string;
+}
+
 export default function DocumentsPage() {
   const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
 
-  const handleFileUploaded = (file: any) => {
-    // Automatically categorize based on file name/type
-    let category: UploadedDocument['category'] = 'other'
-    const fileName = file.name.toLowerCase()
-    
-    if (fileName.includes('cte') || fileName.includes('conhecimento')) {
-      category = 'cte'
-    } else if (fileName.includes('bl') || fileName.includes('lading')) {
-      category = 'bl'
-    } else if (fileName.includes('invoice') || fileName.includes('fatura')) {
-      category = 'invoice'
-    }
+  const handleFileUploaded = (file: FileFromUploader) => {
+    if (file.status === 'completed' && file.url) {
+      let category: UploadedDocument['category'] = 'other'
+      const fileName = file.name.toLowerCase()
+      
+      if (fileName.includes('cte') || fileName.includes('conhecimento')) {
+        category = 'cte'
+      } else if (fileName.includes('bl') || fileName.includes('lading')) {
+        category = 'bl'
+      } else if (fileName.includes('invoice') || fileName.includes('fatura')) {
+        category = 'invoice'
+      }
 
-    const document: UploadedDocument = {
-      id: file.id,
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      url: file.url || '#',
-      uploadedAt: new Date().toISOString(),
-      category
-    }
+      const document: UploadedDocument = {
+        id: file.id,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        url: file.url,
+        uploadedAt: new Date().toISOString(),
+        category
+      }
 
-    setUploadedDocuments(prev => [document, ...prev])
+      setUploadedDocuments(prev => [document, ...prev])
+    }
   }
 
   const getCategoryLabel = (category: string) => {

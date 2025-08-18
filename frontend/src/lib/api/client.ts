@@ -339,7 +339,7 @@ export async function uploadFile(
     },
   }
 
-  const response = await apiClient.postRaw<{ url: string; id: string }>(
+  const response = await gatekeeperClient.postRaw<{ url: string; id: string }>(
     endpoint,
     formData,
     config

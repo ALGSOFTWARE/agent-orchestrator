@@ -13,8 +13,14 @@ export {
   ollamaClient,
   graphqlQuery,
   checkServiceHealth,
-  uploadFile
+  uploadFile,
+  uploadFile as apiUploadFile  // Alias para compatibilidade
 } from './client'
+
+// File management functions
+export async function getSignedUrl(filename: string, expiresIn: number = 3600) {
+  return gatekeeperClient.getRaw(`/files/signed-url/${filename}?expires_in=${expiresIn}`)
+}
 
 // Gatekeeper API
 export {

@@ -27,7 +27,7 @@ logger = logging.getLogger("GatekeeperAPI")
 
 # Imports dos módulos internos
 from .database import init_database
-from .routes import auth, users, context
+from .routes import auth, users, context, orders, files
 from .routes.crud import crud_router
 from .models import ErrorResponse
 
@@ -70,6 +70,8 @@ app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(users.router, prefix="/users", tags=["Users"])  
 app.include_router(context.router, prefix="/context", tags=["Context"])
 app.include_router(crud_router, tags=["CRUD Operations"])
+app.include_router(orders.router, prefix="/orders", tags=["Orders"])
+app.include_router(files.router, prefix="/files", tags=["File Upload"])
 
 # Health check
 @app.get("/health")
