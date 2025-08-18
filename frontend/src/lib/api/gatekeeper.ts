@@ -15,7 +15,7 @@ import {
 export async function authenticateUser(payload: AuthPayload): Promise<GatekeeperResponse> {
   try {
     const response = await gatekeeperClient.postRaw<GatekeeperResponse>(
-      '/auth-callback',
+      '/gatekeeper/auth-callback',
       payload
     )
     return response
@@ -43,7 +43,7 @@ export async function getRolesAndPermissions() {
     const response = await gatekeeperClient.getRaw<{
       available_roles: UserRole[]
       role_permissions: Record<UserRole, string[]>
-    }>('/roles')
+    }>('/gatekeeper/roles')
     
     return response
   } catch (error) {
@@ -63,7 +63,7 @@ export async function getGatekeeperInfo() {
       supported_roles: UserRole[]
       agent_mapping: Record<string, string>
       endpoints: string[]
-    }>('/info')
+    }>('/gatekeeper/info')
     
     return response
   } catch (error) {
@@ -81,7 +81,7 @@ export async function getGatekeeperHealth() {
       service: string
       timestamp: string
       version: string
-    }>('/health')
+    }>('/gatekeeper/health')
     
     return {
       ...response,

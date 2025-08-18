@@ -35,7 +35,9 @@ export function AgentTester({ agentType, currentUser }: AgentTesterProps) {
       agent: agentType,
       metadata: {
         type: 'welcome',
-        agentVersion: '1.0.0'
+        agentVersion: '2.0.0',
+        engine: 'MIT-AI-v2.0',
+        providers: 'OpenAI + Gemini'
       }
     }
     setMessages([welcomeMessage])
@@ -43,7 +45,7 @@ export function AgentTester({ agentType, currentUser }: AgentTesterProps) {
 
   const getWelcomeMessage = (agent: AgentType): string => {
     const messages = {
-      'mit-tracking': '🚚 Olá! Sou o MIT Tracking Agent. Posso ajudar você com consultas sobre CT-e, rastreamento de containers, status de entregas e muito mais. Como posso ajudar hoje?',
+      'mit-tracking': '🚚 Olá! Sou o MIT Tracking Agent v2.0 com IA OpenAI/Gemini. Posso ajudar você com consultas sobre CT-e, rastreamento de containers, status de entregas e muito mais. \n\n💡 Experimente perguntar:\n• "Onde está o CT-e 351234567890123?"\n• "Status do container ABCD1234567"\n• "Qual a previsão de entrega?"\n\nComo posso ajudar hoje?',
       'gatekeeper': '🛡️ Bem-vindo ao Gatekeeper Agent. Sou responsável pela autenticação e controle de acesso. Posso validar credenciais, verificar permissões e auditar acessos. Em que posso ajudar?',
       'customs': '🛃 Sou o Customs Agent, especialista em documentação aduaneira. Posso auxiliar com NCM, cálculos de impostos, status de desembaraço e conformidade regulatória. Qual sua dúvida?',
       'financial': '💰 Olá! Sou o Financial Agent. Posso analisar custos, gerar relatórios financeiros, acompanhar faturamento e calcular KPIs. Como posso ajudar na análise financeira?'
@@ -67,8 +69,8 @@ export function AgentTester({ agentType, currentUser }: AgentTesterProps) {
     setIsLoading(true)
 
     try {
-      // Simulate API call to agent
-      const response = await simulateAgentResponse(agentType, message, currentUser, sessionId)
+      // Call real MIT Tracking Agent v2 via GraphQL
+      const response = await callMITTrackingAgent(message, sessionId, currentUser)
       
       const agentMessage: ChatMessage = {
         id: `agent_${Date.now()}`,
@@ -122,7 +124,9 @@ export function AgentTester({ agentType, currentUser }: AgentTesterProps) {
       agent: agentType,
       metadata: {
         type: 'welcome',
-        agentVersion: '1.0.0'
+        agentVersion: '2.0.0',
+        engine: 'MIT-AI-v2.0',
+        providers: 'OpenAI + Gemini'
       }
     }
     setMessages([welcomeMessage])
@@ -224,83 +228,132 @@ export function AgentTester({ agentType, currentUser }: AgentTesterProps) {
   )
 }
 
-// Mock function to simulate agent responses
-async function simulateAgentResponse(
-  agentType: AgentType,
+// Real API call to MIT Tracking Agent v2
+async function callMITTrackingAgent(
   message: string,
-  user: UserContext,
-  sessionId: string
+  sessionId: string,
+  user: UserContext
 ): Promise<{
   content: string
   metadata: Record<string, unknown>
   testResult: AgentTestResult
 }> {
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000))
-
-  const responseTime = 800 + Math.random() * 1200
-
-  // Mock responses based on agent type and message content
-  const responses = {
-    'mit-tracking': {
-      'ct-e': '📋 Consultando CT-e... Encontrado! CT-e 35123456789012345678901234567890123 - Status: AUTORIZADO. Destinatário: ACME LOGÍSTICA. Valor: R$ 1.250,00. ETA: 2024-01-15.',
-      'container': '📦 Container MSKU1234567 localizado no Porto de Santos, Terminal ABC. Status: DESCARGA CONCLUÍDA. Próximo movimento: Liberação alfandegária prevista para hoje às 14:00.',
-      'rastreamento': '🚛 Carga em trânsito. Última atualização: Km 340 da BR-116, sentido Rio de Janeiro. Previsão de chegada: 16:30 de hoje.',
-      'default': '📍 Posso ajudar com consultas de CT-e, rastreamento de containers, status de entregas e previsões. Informe o número do documento ou container.'
-    },
-    'gatekeeper': {
-      'auth': '🔐 Usuário validado com sucesso. Permissões ativas: read:cte, write:document. Sessão expira em 4h 23min.',
-      'permission': '✅ Verificação de permissões concluída. Usuário tem acesso aos módulos: Tracking, Documents. Acesso negado: Financial Reports.',
-      'session': '🕒 Sessão ativa desde 09:30. Última atividade: 2 minutos atrás. Token válido até 18:30.',
-      'default': '🛡️ Sistema de autenticação ativo. Posso validar credenciais, verificar permissões ou auditar acessos.'
-    },
-    'customs': {
-      'ncm': '📊 NCM 85171200 - Telefones para redes celulares. Imposto de Importação: 12%. ICMS: 18%. PIS/COFINS: 9,25%.',
-      'due': '🛃 DU-E 12345678901 - Status: REGISTRADO. Produto: Eletrônicos. Valor: USD 50.000. Previsão de desembaraço: 2-3 dias úteis.',
-      'documento': '📄 Documentos necessários: Invoice comercial, Packing List, BL original, Certificado de origem. Status: PENDENTE - Aguardando certificado.',
-      'default': '🛃 Posso consultar NCM, calcular impostos, verificar status de DU-E e orientar sobre documentação aduaneira.'
-    },
-    'financial': {
-      'custo': '💰 Análise de custos do último mês: Frete: R$ 45.670, Combustível: R$ 12.340, Pedágios: R$ 3.450. Total: R$ 61.460.',
-      'faturamento': '📈 Faturamento Janeiro: R$ 234.567. Crescimento de 12% vs. mês anterior. Top clientes: ACME (35%), BETA (22%), GAMMA (18%).',
-      'margem': '📊 Margem líquida atual: 18,5%. Container 20": R$ 2.340 lucro. Container 40": R$ 4.120 lucro. ROI médio: 23%.',
-      'default': '💳 Posso analisar custos, calcular margens, gerar relatórios financeiros e acompanhar KPIs de performance.'
-    }
-  }
-
-  // Find best matching response
-  const agentResponses = responses[agentType]
-  let content = agentResponses.default
+  const GRAPHQL_ENDPOINT = process.env.NEXT_PUBLIC_GATEKEEPER_URL || 'http://localhost:8001'
   
-  for (const [key, response] of Object.entries(agentResponses)) {
-    if (key !== 'default' && message.toLowerCase().includes(key)) {
-      content = response
-      break
+  const query = `
+    mutation ChatWithAgent($input: ChatInput!) {
+      chatWithAgent(chatInput: $input) {
+        success
+        error
+        message {
+          id
+          content
+          role
+          timestamp
+          agentType
+          sessionId
+          provider
+          tokensUsed
+          responseTime
+          confidence
+        }
+        agentStats
+      }
+    }
+  `
+  
+  const variables = {
+    input: {
+      message,
+      sessionId,
+      userId: user.userId
     }
   }
-
-  // Add some contextual information
-  content += `\n\n_Processado em ${responseTime.toFixed(0)}ms | Usuário: ${user.userId} | Sessão: ${sessionId.slice(-8)}_`
-
-  return {
-    content,
-    metadata: {
-      agentType,
-      userId: user.userId,
-      sessionId,
-      responseTime,
-      processingEngine: 'MIT-AI-v1.0',
-      confidence: 0.85 + Math.random() * 0.15
-    },
-    testResult: {
-      status: 'success',
-      responseTime,
-      agentType,
-      confidence: 0.85 + Math.random() * 0.15,
-      tokensUsed: Math.floor(50 + Math.random() * 200),
+  
+  try {
+    const response = await fetch(`${GRAPHQL_ENDPOINT}/graphql`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        variables
+      })
+    })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    
+    if (data.errors) {
+      throw new Error(data.errors[0]?.message || 'GraphQL error')
+    }
+    
+    const result = data.data.chatWithAgent
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Chat failed')
+    }
+    
+    const { message: chatMessage, agentStats } = result
+    
+    return {
+      content: chatMessage.content,
       metadata: {
-        engine: 'MIT-AI-v1.0',
-        model: agentType === 'mit-tracking' ? 'logistics-llm-3b' : 'general-llm-7b'
+        agentType: chatMessage.agentType,
+        provider: chatMessage.provider,
+        tokensUsed: chatMessage.tokensUsed,
+        responseTime: chatMessage.responseTime,
+        confidence: chatMessage.confidence,
+        sessionId: chatMessage.sessionId,
+        userId: user.userId,
+        ...agentStats
+      },
+      testResult: {
+        status: 'success',
+        responseTime: chatMessage.responseTime || 1.0,
+        agentType: 'mit-tracking',
+        confidence: chatMessage.confidence || 0.9,
+        tokensUsed: chatMessage.tokensUsed || 0,
+        metadata: {
+          engine: 'MIT-AI-v2.0',
+          provider: chatMessage.provider,
+          model: chatMessage.provider === 'openai' ? 'gpt-3.5-turbo' : 'gemini-pro'
+        }
+      }
+    }
+    
+  } catch (error) {
+    console.error('Error calling MIT Tracking Agent:', error)
+    
+    // Fallback para simulação em caso de erro
+    const responseTime = 1.5
+    const errorContent = `❌ Erro ao conectar com o agente: ${error instanceof Error ? error.message : 'Erro desconhecido'}\n\n💡 Verifique se o backend está rodando e as API keys estão configuradas.`
+    
+    return {
+      content: errorContent,
+      metadata: {
+        agentType: 'mit-tracking',
+        userId: user.userId,
+        sessionId,
+        responseTime,
+        error: true,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error'
+      },
+      testResult: {
+        status: 'error',
+        responseTime,
+        agentType: 'mit-tracking',
+        confidence: 0.0,
+        tokensUsed: 0,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        metadata: {
+          engine: 'MIT-AI-v2.0',
+          fallback: true
+        }
       }
     }
   }

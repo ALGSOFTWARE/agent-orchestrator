@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui'
 import { AgentTester } from '@/components/features/AgentTester'
@@ -17,8 +17,13 @@ export default function AgentsPage() {
   const router = useRouter()
 
   // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!currentUser) {
+      router.push('/')
+    }
+  }, [currentUser, router])
+
   if (!currentUser) {
-    router.push('/')
     return null
   }
 

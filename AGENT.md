@@ -1,13 +1,13 @@
 # MIT Tracking Project
 
-MIT Tracking é um agente conversacional especializado em consultas logísticas, desenvolvido com CrewAI, LangChain e integração local com Ollama. O sistema é focado em CT-e (Conhecimento de Transporte Eletrônico), rastreamento de containers e documentos de transporte.
+MIT Tracking é um agente conversacional especializado em consultas logísticas, desenvolvido com CrewAI, LangChain e integração com OpenAI e Google Gemini via roteamento inteligente. O sistema é focado em CT-e (Conhecimento de Transporte Eletrônico), rastreamento de containers e documentos de transporte.
 
 ## Architecture & Stack
 
 - **Runtime**: Node.js 22+ with ES Modules
 - **Language**: TypeScript (strict mode)
 - **AI Framework**: CrewAI + LangChain
-- **LLM**: Ollama local (models: llama3.2:3b, mistral)
+- **LLM**: OpenAI (GPT-3.5-turbo, GPT-4) + Google Gemini (Pro) com roteamento inteligente
 - **Testing**: Jest with TypeScript support
 - **Containerization**: Docker
 - **Build Tool**: TypeScript Compiler (tsc) + tsx for development
@@ -83,28 +83,28 @@ npm run test:verbose
 ### Docker
 ```bash
 # Build container
-docker build -t crewai-ollama .
+docker build -t crewai-llm .
 
-# Run container (connects to host Ollama)
-docker run -it --rm crewai-ollama
+# Run container with API keys
+docker run -it --rm -e OPENAI_API_KEY="$OPENAI_API_KEY" -e GEMINI_API_KEY="$GEMINI_API_KEY" crewai-llm
 ```
 
 ## Development Environment
 
 ### Prerequisites
 1. **Node.js 22+** - Required runtime
-2. **Ollama** running locally:
+2. **OpenAI/Gemini API Keys**:
    ```bash
-   ollama serve
-   ollama pull llama3.2:3b
-   ollama pull mistral
+   export OPENAI_API_KEY="sk-..."
+   export GEMINI_API_KEY="AIza..."
    ```
 
 ### Environment Configuration
-- **Ollama URL**: `http://localhost:11434` (local) or `http://host.docker.internal:11434` (container)
-- **Primary Model**: `llama3.2:3b`
-- **Fallback Model**: `mistral`
+- **OpenAI API**: GPT-3.5-turbo, GPT-4 models
+- **Gemini API**: Gemini Pro model  
+- **Routing Strategy**: Automatic based on task type
 - **Temperature**: `0.3` (precise responses for logistics)
+- **Max Daily Cost**: `$50` per provider (configurable)
 
 ## Code Style & Standards
 
@@ -230,16 +230,17 @@ This approach maintains backward compatibility while centralizing all AI assista
 ## Debugging & Troubleshooting
 
 ### Common Issues
-1. **Ollama Connection**: Check if `http://localhost:11434` is accessible
-2. **Model Loading**: Ensure models are pulled (`ollama pull llama3.2:3b`)
+1. **API Keys**: Ensure OpenAI and/or Gemini API keys are properly configured
+2. **Rate Limits**: Monitor daily cost limits and request quotas
 3. **TypeScript Errors**: Run `npm run typecheck` for detailed errors
-4. **Test Failures**: Check Ollama availability for integration tests
+4. **Test Failures**: Check API availability for integration tests
 
 ### Logging
-- Agent responses include conversation context
-- Error handling for connection failures
-- Detailed logs in interactive mode
+- Agent responses include provider information and token usage
+- Error handling for API failures with automatic fallback
+- LLM routing statistics and cost tracking
 - Jest verbose output for test debugging
+- Real-time monitoring via `/settings/llm` dashboard
 
 ---
 

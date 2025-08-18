@@ -147,11 +147,25 @@ export function GlobalHeader() {
             <span className={styles.logoutText}>Sair</span>
           </button>
 
-          {/* Navigation link to dashboard if not already there */}
-          {!pathname.startsWith('/agents') && !pathname.startsWith('/monitoring') && !pathname.startsWith('/api-explorer') && !pathname.startsWith('/documents') && !pathname.startsWith('/settings') && (
+          {/* Navigation links */}
+          {pathname === '/' && (
             <Link href="/agents" className={styles.dashboardLink} title="Ir para Dashboard">
               <span className={styles.dashboardIcon}>🎛️</span>
               <span className={styles.dashboardText}>Dashboard</span>
+            </Link>
+          )}
+          
+          {pathname.startsWith('/chat') && (
+            <Link href="/agents" className={styles.dashboardLink} title="Ir para Dashboard">
+              <span className={styles.dashboardIcon}>🎛️</span>
+              <span className={styles.dashboardText}>Dashboard</span>
+            </Link>
+          )}
+          
+          {(pathname.startsWith('/agents') || pathname.startsWith('/monitoring') || pathname.startsWith('/api-explorer') || pathname.startsWith('/documents') || pathname.startsWith('/settings')) && (
+            <Link href="/chat" className={styles.dashboardLink} title="Sandbox de Agentes">
+              <span className={styles.dashboardIcon}>💬</span>
+              <span className={styles.dashboardText}>Sandbox</span>
             </Link>
           )}
         </div>

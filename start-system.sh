@@ -6,6 +6,15 @@
 echo "🚀 MIT Logistics - Iniciando Sistema..."
 echo "========================================"
 
+# Carregar variáveis de ambiente do arquivo .env
+if [ -f ".env" ]; then
+    echo -e "${BLUE}📄 Carregando configurações do arquivo .env...${NC}"
+    export $(grep -v '^#' .env | grep -v '^$' | xargs)
+    echo -e "${GREEN}✅ Arquivo .env carregado com sucesso${NC}"
+else
+    echo -e "${YELLOW}⚠️  Arquivo .env não encontrado, usando variáveis do sistema${NC}"
+fi
+
 # Cores para output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -46,10 +55,20 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-# Ollama
-if ! command -v ollama &> /dev/null; then
-    echo -e "${RED}❌ Ollama não encontrado. Instale Ollama primeiro.${NC}"
-    echo "   curl -fsSL https://ollama.ai/install.sh | sh"
+# Teste de configuração
+echo -e "${BLUE}🔑 Validando configurações...${NC}"
+
+# Executar teste de configuração Python
+if python3 test-config.py; then
+    echo -e "${GREEN}✅ Configurações validadas com sucesso!${NC}"
+    api_keys_found=true
+else
+    echo -e "${RED}❌ Falha na validação das configurações!${NC}"
+    echo -e "${YELLOW}💡 Edite o arquivo .env e configure suas API keys:${NC}"
+    echo "   OPENAI_API_KEY=sk-proj-..."
+    echo "   GEMINI_API_KEY=AIzaSy..."
+    echo ""
+    echo -e "${BLUE}📖 Ou configure através do dashboard em /settings/llm${NC}"
     exit 1
 fi
 
@@ -61,26 +80,6 @@ kill_port 3000  # Frontend
 kill_port 8000  # GraphQL API
 kill_port 8001  # Gatekeeper
 kill_port 8002  # MIT Tracking
-
-# Verificar se Ollama está rodando
-echo -e "${BLUE}🧠 Verificando Ollama...${NC}"
-if ! check_port 11434; then
-    echo -e "${YELLOW}⚠️  Ollama não está rodando. Iniciando...${NC}"
-    ollama serve &
-    sleep 5
-fi
-
-# Verificar modelos Ollama
-echo -e "${BLUE}📦 Verificando modelos Ollama...${NC}"
-if ! ollama list | grep -q "llama3.2:3b"; then
-    echo -e "${YELLOW}📥 Baixando modelo llama3.2:3b...${NC}"
-    ollama pull llama3.2:3b
-fi
-
-if ! ollama list | grep -q "mistral"; then
-    echo -e "${YELLOW}📥 Baixando modelo mistral...${NC}"
-    ollama pull mistral
-fi
 
 # Função para iniciar backend
 start_backend() {
@@ -135,11 +134,16 @@ echo -e "${BLUE}🔍 Verificando status dos serviços...${NC}"
 
 services_ok=true
 
-# Frontend
+# Frontend (verificar portas 3000 ou 3001)
+frontend_port=""
 if check_port 3000; then
+    frontend_port="3000"
     echo -e "${GREEN}✅ Frontend (3000): OK${NC}"
+elif check_port 3001; then
+    frontend_port="3001"
+    echo -e "${GREEN}✅ Frontend (3001): OK${NC}"
 else
-    echo -e "${RED}❌ Frontend (3000): FALHOU${NC}"
+    echo -e "${RED}❌ Frontend (3000/3001): FALHOU${NC}"
     services_ok=false
 fi
 
@@ -151,11 +155,11 @@ else
     services_ok=false
 fi
 
-# Ollama
-if check_port 11434; then
-    echo -e "${GREEN}✅ Ollama (11434): OK${NC}"
+# API Status (verificação simplificada)
+if [ "$api_keys_found" = true ]; then
+    echo -e "${GREEN}✅ APIs LLM: Configuradas${NC}"
 else
-    echo -e "${RED}❌ Ollama (11434): FALHOU${NC}"
+    echo -e "${RED}❌ APIs LLM: Não configuradas${NC}"
     services_ok=false
 fi
 
@@ -165,13 +169,17 @@ if [ "$services_ok" = true ]; then
     echo -e "${GREEN}🎉 SISTEMA INICIADO COM SUCESSO!${NC}"
     echo ""
     echo -e "${BLUE}🌐 URLs disponíveis:${NC}"
-    echo -e "   Frontend:     ${GREEN}http://localhost:3000${NC}"
-    echo -e "   Agent Tester: ${GREEN}http://localhost:3000/agents${NC}"
-    echo -e "   Monitoring:   ${GREEN}http://localhost:3000/monitoring${NC}"
+    if [ ! -z "$frontend_port" ]; then
+        echo -e "   Frontend:     ${GREEN}http://localhost:$frontend_port${NC}"
+        echo -e "   Agent Tester: ${GREEN}http://localhost:$frontend_port/agents${NC}"
+        echo -e "   LLM Config:   ${GREEN}http://localhost:$frontend_port/settings/llm${NC}"
+        echo -e "   Monitoring:   ${GREEN}http://localhost:$frontend_port/monitoring${NC}"
+    fi
     echo -e "   Gatekeeper:   ${GREEN}http://localhost:8001${NC}"
-    echo -e "   Ollama:       ${GREEN}http://localhost:11434${NC}"
     echo ""
-    echo -e "${YELLOW}💡 Dica: Abra http://localhost:3000 no seu navegador${NC}"
+    if [ ! -z "$frontend_port" ]; then
+        echo -e "${YELLOW}💡 Dica: Abra http://localhost:$frontend_port no seu navegador${NC}"
+    fi
     echo ""
     echo -e "${BLUE}📝 Para parar o sistema, pressione Ctrl+C${NC}"
     

@@ -104,10 +104,10 @@ export default function HomePage() {
 
             <div className={styles.feature}>
               <div className={styles.featureIcon}>💬</div>
-              <h3>Chat Interativo</h3>
-              <p>Converse diretamente com agentes especializados</p>
-              <Link href="/agents" className={styles.featureLink}>
-                Conversar →
+              <h3>Sandbox de Agentes</h3>
+              <p>Teste e compare agentes OpenAI vs Gemini - Sandbox público</p>
+              <Link href="/chat" className={styles.featureLink}>
+                Abrir Sandbox →
               </Link>
             </div>
 

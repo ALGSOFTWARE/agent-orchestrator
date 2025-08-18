@@ -185,7 +185,7 @@ export default function DocumentsPage() {
                       variant="outline"
                       onClick={() => {
                         // Mock download
-                        const link = document.createElement('a')
+                        const link = window.document.createElement('a')
                         link.href = document.url
                         link.download = document.name
                         link.click()
