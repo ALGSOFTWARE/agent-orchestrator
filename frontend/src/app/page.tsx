@@ -1,17 +1,19 @@
 // 🏠 MIT Logistics Frontend - Homepage
 
-import { Metadata } from 'next'
+'use client'
+
+import { useState } from 'react'
 import Link from 'next/link'
+import { useCurrentUser } from '@/lib/store/auth'
+import { AuthModal } from '@/components/auth/AuthModal'
 import styles from '@/styles/modules/HomePage.module.css'
 
-export const metadata: Metadata = {
-  title: 'MIT Logistics - Dashboard',
-  description: 'Transformando logística em inteligência real - Sistema de testes para agentes de IA',
-}
-
 export default function HomePage() {
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const currentUser = useCurrentUser()
+  
   return (
-    <div className={styles.container}>
+    <div className={`${styles.container} ${currentUser ? styles.containerWithHeader : ''}`}>
       {/* Hero Section */}
       <header className={styles.hero}>
         <div className={styles.heroContent}>
@@ -25,14 +27,24 @@ export default function HomePage() {
           </div>
           
           <p className={styles.description}>
-            Dashboard interativo para teste e validação de agentes de IA especializados 
-            em operações logísticas, monitoramento de containers e processamento de CT-e.
+            Dashboard interativo com agentes de IA especializados em logística. 
+            Powered by OpenAI e Google Gemini com roteamento inteligente para consultas de CT-e, 
+            rastreamento de containers e documentos de transporte.
           </p>
 
           <div className={styles.actions}>
-            <Link href="/agents" className={styles.primaryButton}>
-              🤖 Testar Agentes
-            </Link>
+            {currentUser ? (
+              <Link href="/agents" className={styles.primaryButton}>
+                🤖 Testar Agentes
+              </Link>
+            ) : (
+              <button 
+                onClick={() => setShowAuthModal(true)}
+                className={styles.primaryButton}
+              >
+                🔐 Fazer Login
+              </button>
+            )}
             <Link href="/monitoring" className={styles.secondaryButton}>
               📊 Monitoramento
             </Link>
@@ -48,8 +60,8 @@ export default function HomePage() {
             </div>
             <div className={styles.gridItem}>
               <div className={styles.icon}>📦</div>
-              <h3>Logistics Agent</h3>
-              <p>CT-e, containers e rastreamento</p>
+              <h3>MIT Tracking v2</h3>
+              <p>OpenAI/Gemini • CT-e, containers</p>
             </div>
             <div className={styles.gridItem}>
               <div className={styles.icon}>💰</div>
@@ -75,9 +87,19 @@ export default function HomePage() {
               <div className={styles.featureIcon}>🔐</div>
               <h3>Simulador de Autenticação</h3>
               <p>Teste diferentes roles e permissões com o Gatekeeper Agent</p>
-              <Link href="/agents/playground" className={styles.featureLink}>
-                Experimentar →
-              </Link>
+              {currentUser ? (
+                <Link href="/agents" className={styles.featureLink}>
+                  Experimentar →
+                </Link>
+              ) : (
+                <button 
+                  onClick={() => setShowAuthModal(true)}
+                  className={styles.featureLink}
+                  style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}
+                >
+                  Entrar primeiro →
+                </button>
+              )}
             </div>
 
             <div className={styles.feature}>
@@ -128,61 +150,17 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Status Section */}
-      <section className={styles.status}>
-        <div className={styles.container}>
-          <h2 className={styles.sectionTitle}>Status do Sistema</h2>
-          
-          <div className={styles.statusGrid}>
-            <div className={styles.statusItem}>
-              <div className={styles.statusIndicator} data-status="loading">
-                <div className={styles.pulse}></div>
-              </div>
-              <div className={styles.statusInfo}>
-                <h4>GraphQL API</h4>
-                <p>Verificando conexão...</p>
-              </div>
-            </div>
-
-            <div className={styles.statusItem}>
-              <div className={styles.statusIndicator} data-status="loading">
-                <div className={styles.pulse}></div>
-              </div>
-              <div className={styles.statusInfo}>
-                <h4>Gatekeeper Agent</h4>
-                <p>Verificando conexão...</p>
-              </div>
-            </div>
-
-            <div className={styles.statusItem}>
-              <div className={styles.statusIndicator} data-status="loading">
-                <div className={styles.pulse}></div>
-              </div>
-              <div className={styles.statusInfo}>
-                <h4>Ollama LLM</h4>
-                <p>Verificando conexão...</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* Footer */}
       <footer className={styles.footer}>
-        <div className={styles.container}>
-          <p>
-            MIT Logistics Dashboard v1.0.0 - 
-            Sistema de testes para agentes de IA especializados
-          </p>
-          <div className={styles.footerLinks}>
-            <Link href="/api-explorer/graphql">GraphQL Playground</Link>
-            <span>•</span>
-            <Link href="/monitoring/logs">Logs do Sistema</Link>
-            <span>•</span>
-            <Link href="/settings">Configurações</Link>
-          </div>
-        </div>
+        <p>MIT Logistics v2.0 • OpenAI + Gemini</p>
       </footer>
+      
+      {/* Authentication Modal */}
+      <AuthModal 
+        isOpen={showAuthModal} 
+        onClose={() => setShowAuthModal(false)} 
+      />
     </div>
   )
 }

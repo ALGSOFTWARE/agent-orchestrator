@@ -7,8 +7,9 @@
     "sidebar main";
   grid-template-columns: var(--sidebar-width) 1fr;
   grid-template-rows: var(--header-height) 1fr;
-  height: 100vh;
+  height: calc(100vh - var(--header-height, 64px));
   overflow: hidden;
+  margin-top: var(--header-height, 64px);
 }
 
 /* === HEADER === */
@@ -21,12 +22,31 @@
 }
 
 .headerContent {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
   height: 100%;
   padding: 0 var(--spacing-lg);
+  gap: var(--spacing-lg);
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
   gap: var(--spacing-md);
+}
+
+.headerCenter {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  justify-self: end;
 }
 
 /* === LOGO === */
@@ -54,6 +74,24 @@
 
 .logoText strong {
   font-weight: var(--font-weight-bold);
+  color: var(--color-primary-600);
+}
+
+/* === DASHBOARD TITLE === */
+.dashboardTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  color: var(--color-foreground);
+}
+
+.dashboardIcon {
+  font-size: 1.5rem;
+}
+
+.dashboardText {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
   color: var(--color-primary-600);
 }
 
@@ -106,12 +144,153 @@
   border-color: var(--color-primary-300);
 }
 
-/* === HEADER ACTIONS === */
-.headerActions {
+/* === API STATUS === */
+.statusRow {
   display: flex;
   align-items: center;
   gap: var(--spacing-md);
-  margin-left: auto;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-muted);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.statusLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-muted-foreground);
+  white-space: nowrap;
+}
+
+.statusItems {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.statusBadge {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-foreground);
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.statusDot[data-status="healthy"] {
+  background: var(--color-success);
+}
+
+.statusDot[data-status="unhealthy"] {
+  background: var(--color-error);
+}
+
+.statusDot[data-status="checking"] {
+  background: var(--color-warning);
+  animation: pulse 2s infinite;
+}
+
+.refreshButton {
+  background: none;
+  border: 1px solid var(--color-border);
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-xs);
+  transition: all var(--transition-fast);
+}
+
+.refreshButton:hover {
+  background: var(--color-background);
+  border-color: var(--color-primary-300);
+}
+
+/* === USER INFO === */
+.currentUserInfo {
+  display: flex;
+  align-items: center;
+}
+
+.userBadge {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  background: var(--color-primary-50);
+  border: 1px solid var(--color-primary-200);
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: var(--radius-lg);
+}
+
+.userIcon {
+  font-size: var(--font-size-base);
+  background: var(--color-primary-600);
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xs);
+}
+
+.userDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.userName {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-700);
+  line-height: 1.2;
+}
+
+.userRole {
+  font-size: var(--font-size-xs);
+  color: var(--color-primary-600);
+  text-transform: capitalize;
+  line-height: 1.2;
+}
+
+.logoutButton {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  background: var(--color-error);
+  color: white;
+  border: none;
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: var(--radius-lg);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-size: var(--font-size-sm);
+}
+
+.logoutButton:hover {
+  background: var(--color-error-600);
+  transform: translateY(-1px);
+}
+
+.logoutIcon {
+  font-size: var(--font-size-base);
+}
+
+.logoutText {
+  font-size: var(--font-size-sm);
 }
 
 .statusIndicator {
@@ -163,14 +342,7 @@
   border-color: var(--color-primary-300);
 }
 
-.userInfo {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-xs) var(--spacing-sm);
-  background: var(--color-muted);
-  border-radius: var(--radius-md);
-}
+/* Old userInfo styles removed - replaced with userBadge and currentUserInfo */
 
 .userAvatar {
   width: 24px;
@@ -198,6 +370,103 @@
 .userRole {
   font-size: var(--font-size-xs);
   color: var(--color-muted-foreground);
+}
+
+.userMenuToggle {
+  background: none;
+  border: none;
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  margin-left: var(--spacing-xs);
+}
+
+.userMenuToggle:hover {
+  color: var(--color-foreground);
+}
+
+/* === USER MENU DROPDOWN === */
+.userMenu {
+  position: absolute;
+  top: calc(100% + var(--spacing-xs));
+  right: 0;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  min-width: 200px;
+  z-index: 100;
+  animation: slideDown var(--transition-fast);
+  overflow: hidden;
+}
+
+.userMenuHeader {
+  padding: var(--spacing-md);
+  background: var(--color-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.userMenuInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.userMenuName {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-foreground);
+}
+
+.userMenuRole {
+  font-size: var(--font-size-xs);
+  color: var(--color-muted-foreground);
+  text-transform: capitalize;
+}
+
+.userMenuDivider {
+  height: 1px;
+  background: var(--color-border);
+  margin: var(--spacing-xs) 0;
+}
+
+.userMenuActions {
+  padding: var(--spacing-sm);
+}
+
+.userMenuAction {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: none;
+  border: none;
+  text-align: left;
+  color: var(--color-foreground);
+  font-size: var(--font-size-sm);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.userMenuAction:hover {
+  background: var(--color-muted);
+}
+
+.userMenuLogout {
+  color: var(--color-error);
+}
+
+.userMenuLogout:hover {
+  background: var(--color-error-50);
+  color: var(--color-error-600);
+}
+
+.userMenuIcon {
+  font-size: var(--font-size-base);
+  flex-shrink: 0;
 }
 
 /* === SIDEBAR === */
@@ -465,7 +734,37 @@
     z-index: 50;
   }
 
-  .userDetails {
+  /* Header responsive adjustments */
+  .headerContent {
+    grid-template-columns: auto auto;
+    gap: var(--spacing-md);
+  }
+
+  .headerCenter {
+    display: none;
+  }
+
+  .headerRight {
+    gap: var(--spacing-sm);
+  }
+
+  .userBadge {
+    padding: var(--spacing-xs);
+  }
+
+  .userName {
+    display: none;
+  }
+
+  .logoutText {
+    display: none;
+  }
+
+  .apiStatusTitle {
+    display: none;
+  }
+
+  .serviceName {
     display: none;
   }
 
@@ -483,7 +782,15 @@
     display: none;
   }
 
-  .statusText {
+  .headerRight {
+    gap: var(--spacing-xs);
+  }
+
+  .userRole {
+    display: none;
+  }
+
+  .themeToggle {
     display: none;
   }
 
@@ -496,6 +803,17 @@
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .pulse {
