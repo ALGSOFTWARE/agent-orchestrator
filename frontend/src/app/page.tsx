@@ -130,6 +130,24 @@ export default function HomePage() {
             </div>
 
             <div className={styles.feature}>
+              <div className={styles.featureIcon}>📋</div>
+              <h3>Gerenciamento de Orders</h3>
+              <p>Super-contêineres que organizam todos os documentos de uma operação</p>
+              <Link href="/orders" className={styles.featureLink}>
+                Gerenciar Orders →
+              </Link>
+            </div>
+
+            <div className={styles.feature}>
+              <div className={styles.featureIcon}>🔍</div>
+              <h3>Busca Semântica</h3>
+              <p>Encontre documentos usando linguagem natural e IA</p>
+              <Link href="/search" className={styles.featureLink}>
+                Buscar com IA →
+              </Link>
+            </div>
+
+            <div className={styles.feature}>
               <div className={styles.featureIcon}>📎</div>
               <h3>Upload de Documentos</h3>
               <p>Teste processamento de CT-e, PDFs e imagens</p>

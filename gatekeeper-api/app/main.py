@@ -10,6 +10,9 @@ Funciona como ponto de entrada central que:
 4. Mantém histórico de contexto das interações
 """
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
