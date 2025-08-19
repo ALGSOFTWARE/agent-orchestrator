@@ -1,57 +1,73 @@
-# Repository Guidelines
+---
+project_area: "AI Agents"
+context_focus: "Detailed description of specific AI agents and their roles"
+status: "Updated"
+key_technologies:
+  - "CrewAI"
+  - "FastAPI"
+  - "GraphQL"
+  - "Sentence-Transformers"
+last_updated: "2025-08-19"
+---
 
-This document helps contributors work consistently across the Next.js frontend and the Python/CrewAI backend. Keep changes focused, small, and well‑described.
+# Agentes de IA no Projeto MIT Logistics
 
-## Project Structure & Module Organization
-- Root: orchestration docs and scripts (`start-system.sh`, `START-SYSTEM.md`, `TESTING.md`).
-- `frontend/`: Next.js 14 + TypeScript. Source in `src/` (`app/`, `components/`, `lib/`, `styles/`, `types/`).
-- `python-crewai/`: FastAPI + CrewAI backend. Key dirs: `agents/`, `api/`, `models/`, `tests/`, `tools/`, `utils/`. Entry points: `main.py`, API via `api/`.
-- `gatekeeper-api/`: Authentication microservice with database integration. Core: `app/database.py`, `app/models.py`, `app/services/`.
-- **Database**: MongoDB + Beanie ODM for persistent data (users, context, containers, shipments).
-- Config: `.env` files at root and in `python-crewai/`; Dockerfiles and compose files in both apps.
+Este documento descreve a arquitetura e o funcionamento dos agentes de IA dentro do ecossistema MIT Logistics.
 
-## Build, Test, and Development Commands
-- **Database**: Ensure MongoDB is running locally (`mongod`) or via Docker.
-- Frontend dev: `cd frontend && npm run dev` (Next dev server on `:3000`).
-- Frontend build: `cd frontend && npm run build && npm start` (production).
-- Frontend lint/types: `npm run lint` and `npm run type-check`.
-- Backend dev (CLI): `cd python-crewai && python main.py`.
-- Backend API: `cd python-crewai && python -m uvicorn api.main:app --reload` (default `:8000`).
-- Gatekeeper API: `cd gatekeeper-api && python -m uvicorn app.main:app --reload --port 8001`.
-- Backend tests: `cd python-crewai && pytest -q` or `pytest --cov`.
-- Full system (auto): `./start-system.sh` (installs deps, starts services).
+## Visão Geral e Arquitetura Centrada em `Order`
 
-## Coding Style & Naming Conventions
-- TypeScript/React: follow ESLint rules in `frontend/.eslintrc.json` (no `any`, no unused vars, `prefer-const`, `no-var`). Components `PascalCase`, hooks/utilities `camelCase`. Keep files under `src/` and use path aliases (`@/…`).
-- Python: PEP 8 (4‑space indents), `snake_case` for modules/functions, `PascalCase` for classes, type hints required for new/edited code. Keep logic in `agents/`, I/O in `api/`, database models in `models/`.
-- **Database Models**: Use Beanie ODM with Pydantic for MongoDB documents. Define indexes and relationships properly.
-- Commits and PRs must pass `npm run lint` and `npm run type-check` (frontend) and run `pytest` locally when touching backend.
+O sistema evoluiu para uma arquitetura centrada na entidade `Order` (Pedido). Uma `Order` atua como um contêiner para todas as informações e documentos relacionados a uma operação logística específica. Os agentes de IA agora operam com este conceito central.
 
-## Testing Guidelines
-- Framework: `pytest` (see `python-crewai/tests/`). Name tests as `tests/test_*.py`, functions `test_*`.
-- **Database Testing**: Mock database operations or use test database instance. Test model validation and CRUD operations.
-- Add unit tests for new logic and happy + edge cases. Prefer small, isolated tests over broad integration unless necessary.
-- Run coverage when feasible: `pytest --cov` (HTML via `--cov-report=html`).
-- **Integration Tests**: Include database connections, API endpoints, and agent interactions.
+O fluxo de trabalho da IA, baseado em `crewai`, permanece, mas agora está focado em interagir com as `Orders`.
 
-## Commit & Pull Request Guidelines
-- Commit messages: Conventional Commits style (e.g., `feat:`, `fix:`, `docs:`) as used in history (e.g., `feat: add GraphQL API…`).
-- PRs: clear description, scope, and rationale; link issues; list commands to validate; include screenshots/GIFs for UI changes and API examples for backend changes.
-- Keep PRs focused; update docs when behavior or commands change.
+## Agente Principal: MIT Tracking Agent v2.0
 
-## Security & Configuration
-- Never commit secrets. Use `.env` and `.env.test` locally; document new variables in READMEs.
-- **Database Security**: Use proper MongoDB authentication in production. Configure connection strings with credentials in environment variables.
-- **Environment Variables**: 
-  - `MONGODB_URL`: Database connection string
-  - `DATABASE_NAME`: Database name (default: `mit_logistics`)
-  - `OPENAI_API_KEY`: OpenAI API access
-  - `GEMINI_API_KEY`: Google Gemini API access
-- Ollama/LLM config lives in env files; some compose files use `network_mode: host`—confirm before exposing services.
+Localizado em `python-crewai/agents/mit_tracking_agent_v2.py`.
 
-## Database Architecture
-- **MongoDB + Beanie ODM**: Async, typed document operations
-- **Core Models**: User, Client, Context, Container, Shipment, TrackingEvent
-- **Features**: Auto-indexing, relationships via Links, validation with Pydantic
-- **Context Persistence**: All agent interactions stored for learning and history
-- **Connection Management**: Health checks, auto-reconnection, proper error handling
+### Responsabilidades:
+
+1.  **Orquestração Focada em `Order`:** Recebe tarefas complexas (ex: "Na `Order` XYZ, analise o CT-e e o BL e me diga se há discrepâncias de peso") e as decompõe em passos.
+2.  **Delegação:** Atribui cada passo a um agente especializado.
+3.  **Síntese:** Coleta os resultados e formula uma resposta final no contexto da `Order`.
+
+### Ferramentas Principais:
+
+- **`gatekeeper_api_tool`**: A ferramenta mais importante. Usa GraphQL para interagir com a `gatekeeper-api` e realizar operações CRUD em `Orders` e `DocumentFiles`.
+- **`logistics_tools`**: Ferramentas para consultar APIs externas de logística.
+
+## Agentes Especializados
+
+Localizados em `python-crewai/agents/specialized_agents.py`.
+
+### 1. `DocumentAnalysisAgent` (Novo)
+
+- **Foco:** Análise de conteúdo de documentos dentro de uma `Order`.
+- **Ferramentas:** `gatekeeper_api_tool` para buscar `DocumentFiles` e seu `text_content` extraído.
+- **Exemplo de Tarefa:** "Leia o PDF do CT-e na `Order` 123 e extraia o nome do remetente."
+
+### 2. `SemanticSearchAgent` (Novo)
+
+- **Foco:** Realizar buscas inteligentes nos documentos do sistema.
+- **Ferramentas:** `gatekeeper_api_tool` para acessar o novo endpoint `/orders/search`.
+- **Exemplo de Tarefa:** "Encontre todos os documentos que mencionam 'carga perigosa' relacionados a 'Porto de Santos'."
+
+### 3. `LogisticsAgent`
+
+- **Foco:** Tarefas operacionais de logística externa.
+- **Ferramentas:** `logistics_tools`.
+- **Exemplo de Tarefa:** "Rastrear o contêiner MSKU1234567."
+
+## Fluxo de Processamento de Documentos (Upload e Embedding)
+
+A interação dos agentes com os documentos agora depende de um processo assíncrono:
+
+1.  **Upload:** Um usuário faz o upload de um arquivo através da interface em `/documents`. A `gatekeeper-api` o associa a uma `Order` e o salva no S3.
+2.  **Marcação:** O `DocumentFile` é criado no banco de dados com o status `"processing"`.
+3.  **Fila de Processamento:** Uma tarefa em segundo plano é acionada.
+4.  **Extração e Embedding:** O `DocumentProcessorService` na `gatekeeper-api`:
+    - Extrai o texto do arquivo (usando OCR para imagens/PDFs escaneados).
+    - Gera um vetor de embedding a partir do texto usando um modelo `sentence-transformers`.
+    - Salva o texto extraído e o vetor no `DocumentFile` correspondente.
+5.  **Indexação:** O status do documento é atualizado para `"indexed"`.
+
+A partir deste ponto, o `DocumentAnalysisAgent` pode ler o `text_content` e o `SemanticSearchAgent` pode realizar buscas vetoriais nos embeddings.
