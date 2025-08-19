@@ -36,6 +36,48 @@ class AuthStatus(str, Enum):
     UNAUTHORIZED = "unauthorized"
 
 
+class DocumentCategory(str, Enum):
+    """Categorias de documentos para organização"""
+    CTE = "cte"
+    BL = "bl"
+    INVOICE = "invoice"
+    PHOTO = "photo"
+    VIDEO = "video"
+    EMAIL = "email"
+    CONTRACT = "contract"
+    CERTIFICATE = "certificate"
+    OTHER = "other"
+
+
+class ProcessingStatus(str, Enum):
+    """Status do processamento de documentos"""
+    UPLOADED = "uploaded"
+    PROCESSING = "processing"
+    INDEXED = "indexed"
+    ERROR = "error"
+
+
+class OrderStatus(str, Enum):
+    """Status da operação logística"""
+    CREATED = "created"
+    IN_PROGRESS = "in_progress"
+    SHIPPED = "shipped"
+    IN_TRANSIT = "in_transit"
+    DELIVERED = "delivered"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
+class OrderType(str, Enum):
+    """Tipos de operações logísticas"""
+    IMPORT = "import"
+    EXPORT = "export"
+    DOMESTIC_FREIGHT = "domestic_freight"
+    INTERNATIONAL_FREIGHT = "international_freight"
+    WAREHOUSING = "warehousing"
+    CUSTOMS_CLEARANCE = "customs_clearance"
+
+
 # Modelos de Request/Response
 class AuthPayload(BaseModel):
     """Payload recebido da API de autenticação externa"""
@@ -94,36 +136,185 @@ class ErrorResponse(BaseModel):
 
 # Database Models usando Beanie (MongoDB ODM)
 
-class DocumentFile(BaseModel):
-    """Modelo para qualquer arquivo enviado via upload."""
-    file_name: str
-    s3_url: str
-    file_type: str
-    size: int
+class DocumentFile(Document):
+    """Modelo expandido para qualquer arquivo enviado via upload com capacidades de IA."""
+    # Identificação básica
+    file_id: str = Field(default_factory=lambda: str(uuid4()), unique=True)
+    original_name: str = Field(..., description="Nome original do arquivo")
+    s3_key: str = Field(..., description="Chave única no S3")
+    s3_url: str = Field(..., description="URL de acesso ao arquivo")
+    
+    # Metadados do arquivo
+    file_type: str = Field(..., description="MIME type do arquivo")
+    file_extension: str = Field(..., description="Extensão do arquivo (.pdf, .jpg, etc.)")
+    size_bytes: int = Field(..., description="Tamanho em bytes")
+    category: DocumentCategory = Field(default=DocumentCategory.OTHER, description="Categoria do documento")
+    
+    # Timestamps
     uploaded_at: datetime = Field(default_factory=datetime.utcnow)
-    # Campos para OCR e busca semântica futura
-    text_content: Optional[str] = None
-    embedding: Optional[List[float]] = None
-    indexed_at: Optional[datetime] = None
+    last_accessed: Optional[datetime] = None
+    
+    # Processamento e IA
+    processing_status: ProcessingStatus = Field(default=ProcessingStatus.UPLOADED)
+    text_content: Optional[str] = Field(None, description="Texto extraído via OCR/parsing")
+    extracted_metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Metadados extraídos automaticamente")
+    
+    # Embedding para busca semântica
+    embedding: Optional[List[float]] = Field(None, description="Vetor de embedding para busca semântica")
+    embedding_model: Optional[str] = Field(None, description="Modelo usado para gerar o embedding")
+    indexed_at: Optional[datetime] = Field(None, description="Quando foi indexado para busca")
+    
+    # Relacionamentos - TODO DOCUMENTO DEVE ESTAR VINCULADO A UMA ORDER
+    order_id: str = Field(..., description="ID da Order à qual pertence (obrigatório)")
+    tags: List[str] = Field(default_factory=list, description="Tags para organização")
+    
+    # Controle de acesso
+    is_public: bool = Field(default=True, description="Se o arquivo é público ou privado")
+    access_count: int = Field(default=0, description="Número de acessos")
+    
+    # Logs de processamento
+    processing_logs: List[str] = Field(default_factory=list, description="Logs do processamento")
+    error_details: Optional[str] = Field(None, description="Detalhes de erro se houver")
+
+    class Settings:
+        name = "document_files"
+        
+    def increment_access(self):
+        """Incrementa contador de acesso"""
+        self.access_count += 1
+        self.last_accessed = datetime.utcnow()
+        
+    def add_processing_log(self, message: str):
+        """Adiciona log de processamento"""
+        timestamp = datetime.utcnow().isoformat()
+        self.processing_logs.append(f"[{timestamp}] {message}")
+        
+    def mark_as_processing(self):
+        """Marca documento como sendo processado"""
+        self.processing_status = ProcessingStatus.PROCESSING
+        self.add_processing_log("Iniciando processamento...")
+        
+    def mark_as_indexed(self, embedding_model: str):
+        """Marca documento como indexado"""
+        self.processing_status = ProcessingStatus.INDEXED
+        self.embedding_model = embedding_model
+        self.indexed_at = datetime.utcnow()
+        self.add_processing_log(f"Indexado com sucesso usando {embedding_model}")
+        
+    def mark_as_error(self, error_message: str):
+        """Marca documento com erro"""
+        self.processing_status = ProcessingStatus.ERROR
+        self.error_details = error_message
+        self.add_processing_log(f"Erro: {error_message}")
 
 class Order(Document):
-    """Nó central que representa uma Ordem de Serviço ou Operação Logística."""
+    """Super-contêiner: Nó central que representa uma Ordem de Serviço ou Operação Logística completa."""
+    # Identificação e controle
     order_id: str = Field(default_factory=lambda: str(uuid4()), unique=True)
-    customer_name: Optional[str] = None
-    description: Optional[str] = None
+    order_number: Optional[str] = Field(None, description="Número da ordem (pode ser externo)")
+    
+    # Informações básicas
+    title: str = Field(..., description="Título descritivo da operação")
+    description: Optional[str] = Field(None, description="Descrição detalhada")
+    order_type: OrderType = Field(..., description="Tipo de operação logística")
+    status: OrderStatus = Field(default=OrderStatus.CREATED, description="Status atual da operação")
+    
+    # Informações comerciais
+    customer_name: str = Field(..., description="Nome do cliente")
+    customer_id: Optional[str] = Field(None, description="ID do cliente no sistema")
+    origin: Optional[str] = Field(None, description="Origem da carga/operação")
+    destination: Optional[str] = Field(None, description="Destino da carga/operação")
+    
+    # Datas importantes
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    expected_delivery: Optional[datetime] = Field(None, description="Data prevista de entrega")
+    actual_delivery: Optional[datetime] = Field(None, description="Data real de entrega")
     
-    # Documentos estruturados associados a esta Ordem
-    ctes: List[Link["CTEDocument"]] = []
-    bls: List[Link["BLDocument"]] = []
-    containers: List[Link["Container"]] = []
+    # Informações financeiras
+    estimated_value: Optional[float] = Field(None, description="Valor estimado da operação")
+    actual_cost: Optional[float] = Field(None, description="Custo real da operação")
+    currency: Optional[str] = Field(default="BRL", description="Moeda")
     
-    # Outros arquivos (fotos, vídeos, PDFs não estruturados, etc.)
-    other_documents: List[DocumentFile] = []
+    # Relacionamentos com documentos estruturados
+    ctes: List[Link["CTEDocument"]] = Field(default_factory=list, description="CT-es vinculados")
+    bls: List[Link["BLDocument"]] = Field(default_factory=list, description="BLs vinculados")
+    containers: List[Link["Container"]] = Field(default_factory=list, description="Containers vinculados")
+    
+    # Documentos não estruturados (o coração do sistema)
+    document_files: List[Link[DocumentFile]] = Field(default_factory=list, description="Todos os arquivos da operação")
+    
+    # Organização e busca
+    tags: List[str] = Field(default_factory=list, description="Tags para organização")
+    priority: int = Field(default=3, ge=1, le=5, description="Prioridade (1=baixa, 5=alta)")
+    
+    # Colaboração e notificações
+    assigned_users: List[str] = Field(default_factory=list, description="Usuários responsáveis")
+    watchers: List[str] = Field(default_factory=list, description="Usuários que acompanham")
+    
+    # Tracking e auditoria
+    status_history: List[Dict[str, Any]] = Field(default_factory=list, description="Histórico de mudanças de status")
+    notes: List[Dict[str, Any]] = Field(default_factory=list, description="Notas e comentários")
+    
+    # Análise e métricas
+    document_count: int = Field(default=0, description="Contador de documentos")
+    last_activity: datetime = Field(default_factory=datetime.utcnow, description="Última atividade")
 
     class Settings:
         name = "orders"
+        
+    def add_status_change(self, new_status: OrderStatus, user_id: str, notes: Optional[str] = None):
+        """Adiciona mudança de status ao histórico"""
+        change = {
+            "from_status": self.status.value if self.status else None,
+            "to_status": new_status.value,
+            "changed_by": user_id,
+            "changed_at": datetime.utcnow().isoformat(),
+            "notes": notes
+        }
+        self.status_history.append(change)
+        self.status = new_status
+        self.updated_at = datetime.utcnow()
+        self.last_activity = datetime.utcnow()
+        
+    def add_note(self, content: str, user_id: str, note_type: str = "comment"):
+        """Adiciona nota ou comentário"""
+        note = {
+            "id": str(uuid4()),
+            "content": content,
+            "type": note_type,
+            "created_by": user_id,
+            "created_at": datetime.utcnow().isoformat()
+        }
+        self.notes.append(note)
+        self.last_activity = datetime.utcnow()
+        
+    def add_document(self, document_file: DocumentFile):
+        """Vincula um documento à ordem"""
+        # Criar link para o documento
+        doc_link = Link(document_file.id, DocumentFile)
+        self.document_files.append(doc_link)
+        
+        # Atualizar contador e atividade
+        self.document_count += 1
+        self.last_activity = datetime.utcnow()
+        
+        # Atualizar o documento com o ID da ordem
+        document_file.order_id = self.order_id
+        
+    def get_summary(self) -> Dict[str, Any]:
+        """Retorna resumo da ordem para dashboards"""
+        return {
+            "order_id": self.order_id,
+            "title": self.title,
+            "customer": self.customer_name,
+            "status": self.status.value,
+            "type": self.order_type.value,
+            "document_count": self.document_count,
+            "created_at": self.created_at.isoformat(),
+            "last_activity": self.last_activity.isoformat(),
+            "priority": self.priority
+        }
 
 class CTEDocument(Document):
     """Conhecimento de Transporte Eletrônico."""

@@ -121,13 +121,27 @@ start_gatekeeper() {
         python3 -m venv venv > /dev/null 2>&1
     fi
     
-    # Ativar ambiente virtual e instalar dependências
-    echo -e "${YELLOW}📦 Instalando dependências Gatekeeper...${NC}"
+    # Ativar ambiente virtual
     source venv/bin/activate
-    pip install -r requirements.txt > /dev/null 2>&1
+    
+    # Verificar se dependências já estão instaladas
+    if ! python -c "import fastapi, uvicorn, beanie" >/dev/null 2>&1; then
+        echo -e "${YELLOW}📦 Instalando dependências Gatekeeper...${NC}"
+        timeout 120 pip install -r requirements.txt --quiet --no-cache-dir || {
+            echo -e "${YELLOW}⚠️ Timeout na instalação - usando cache existente${NC}"
+        }
+    else
+        echo -e "${GREEN}✅ Dependências Gatekeeper já instaladas${NC}"
+    fi
     
     echo -e "${GREEN}🚀 Gatekeeper API iniciando na porta 8001...${NC}"
-    venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload > /dev/null 2>&1 &
+    
+    # Iniciar com log para debugging se necessário
+    if [ "$DEBUG" = "true" ]; then
+        venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload &
+    else
+        venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload > /tmp/gatekeeper.log 2>&1 &
+    fi
     GATEKEEPER_PID=$!
     
     cd ..
@@ -152,13 +166,27 @@ start_crewai() {
         python3 -m venv venv > /dev/null 2>&1
     fi
     
-    # Ativar ambiente virtual e instalar dependências
-    echo -e "${YELLOW}📦 Instalando dependências CrewAI...${NC}"
+    # Ativar ambiente virtual
     source venv/bin/activate
-    pip install -r requirements.txt > /dev/null 2>&1
+    
+    # Verificar se dependências já estão instaladas
+    if ! python -c "import crewai, fastapi, uvicorn" >/dev/null 2>&1; then
+        echo -e "${YELLOW}📦 Instalando dependências CrewAI...${NC}"
+        timeout 120 pip install -r requirements.txt --quiet --no-cache-dir || {
+            echo -e "${YELLOW}⚠️ Timeout na instalação - usando cache existente${NC}"
+        }
+    else
+        echo -e "${GREEN}✅ Dependências CrewAI já instaladas${NC}"
+    fi
     
     echo -e "${GREEN}🚀 CrewAI API iniciando na porta 8002...${NC}"
-    venv/bin/python -m uvicorn api.main:app --host 0.0.0.0 --port 8002 --reload > /dev/null 2>&1 &
+    
+    # Iniciar com log para debugging se necessário  
+    if [ "$DEBUG" = "true" ]; then
+        venv/bin/python -m uvicorn api.simple_main:app --host 0.0.0.0 --port 8002 --reload &
+    else
+        venv/bin/python -m uvicorn api.simple_main:app --host 0.0.0.0 --port 8002 --reload > /tmp/crewai.log 2>&1 &
+    fi
     CREWAI_PID=$!
     
     cd ..
@@ -177,11 +205,24 @@ start_frontend() {
         return
     fi
     
-    echo -e "${YELLOW}📦 Instalando dependências Node.js...${NC}"
-    npm install > /dev/null 2>&1
+    # Verificar se dependências já estão instaladas
+    if [ ! -d "node_modules" ] || [ ! -f "node_modules/.package-lock.json" ]; then
+        echo -e "${YELLOW}📦 Instalando dependências Node.js...${NC}"
+        timeout 120 npm install --silent || {
+            echo -e "${YELLOW}⚠️ Timeout na instalação Node.js - usando cache existente${NC}"
+        }
+    else
+        echo -e "${GREEN}✅ Dependências Node.js já instaladas${NC}"
+    fi
     
     echo -e "${GREEN}🚀 Frontend iniciando na porta 3000...${NC}"
-    npm run dev > /dev/null 2>&1 &
+    
+    # Iniciar com log para debugging se necessário
+    if [ "$DEBUG" = "true" ]; then
+        npm run dev &
+    else
+        npm run dev > /tmp/frontend.log 2>&1 &
+    fi
     FRONTEND_PID=$!
     
     cd ..
@@ -279,6 +320,13 @@ if [ "$services_ok" = true ]; then
 else
     echo -e "${RED}❌ FALHA AO INICIAR ALGUNS SERVIÇOS${NC}"
     echo -e "${YELLOW}📋 Verifique os logs acima e tente novamente${NC}"
+    echo ""
+    echo -e "${BLUE}🔍 LOGS PARA DEBUG:${NC}"
+    echo -e "   📄 Gatekeeper: ${GREEN}tail -f /tmp/gatekeeper.log${NC}"
+    echo -e "   📄 CrewAI:     ${GREEN}tail -f /tmp/crewai.log${NC}"
+    echo -e "   📄 Frontend:   ${GREEN}tail -f /tmp/frontend.log${NC}"
+    echo ""
+    echo -e "${BLUE}💡 Para debug completo, execute: ${GREEN}DEBUG=true ./start-system.sh${NC}"
     echo -e "${BLUE}💡 Ou execute manualmente conforme o START-SYSTEM.md${NC}"
     exit 1
 fi

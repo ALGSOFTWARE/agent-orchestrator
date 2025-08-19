@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { uploadFile } from '@/lib/api'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -15,6 +15,17 @@ interface UploadedFile {
   status: 'uploading' | 'completed' | 'error'
   url?: string
   error?: string
+  order_id?: string
+  order_title?: string
+}
+
+interface Order {
+  _id: string
+  order_id: string
+  title: string
+  customer_name: string
+  order_type: string
+  status: string
 }
 
 interface DocumentUploadProps {
@@ -34,6 +45,30 @@ export function DocumentUpload({
 }: DocumentUploadProps) {
   const [files, setFiles] = useState<UploadedFile[]>([])
   const [isDragOver, setIsDragOver] = useState(false)
+  const [orders, setOrders] = useState<Order[]>([])
+  const [selectedOrderId, setSelectedOrderId] = useState<string>('')
+  const [isLoadingOrders, setIsLoadingOrders] = useState(true)
+
+  // Carregar Orders disponíveis
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        const response = await fetch('http://localhost:8001/orders/')
+        const ordersData = await response.json()
+        setOrders(ordersData)
+        // Auto-selecionar primeira Order se houver
+        if (ordersData.length > 0) {
+          setSelectedOrderId(ordersData[0].order_id)
+        }
+      } catch (error) {
+        console.error('Erro ao carregar Orders:', error)
+      } finally {
+        setIsLoadingOrders(false)
+      }
+    }
+    
+    fetchOrders()
+  }, [])
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes'
@@ -44,6 +79,9 @@ export function DocumentUpload({
   }
 
   const validateFile = (file: File): string | null => {
+    if (!selectedOrderId) {
+      return 'Selecione uma Order antes de fazer upload. Todo documento deve estar vinculado a uma Order.'
+    }
     if (file.size > maxSizeBytes) {
       return `Arquivo muito grande. Máximo permitido: ${formatFileSize(maxSizeBytes)}`
     }
@@ -76,8 +114,12 @@ export function DocumentUpload({
     setFiles(prev => [...prev, newFile])
 
     try {
-      // Construir URL com parâmetro public se necessário
-      const uploadUrl = `/files/upload${publicUpload ? '?public=true' : ''}`
+      // Construir URL com parâmetros obrigatórios (order_id) e opcionais
+      const params = new URLSearchParams({
+        order_id: selectedOrderId,
+        public: publicUpload.toString()
+      })
+      const uploadUrl = `/files/upload?${params.toString()}`
       
       const response = await uploadFile(file, uploadUrl, (progress) => {
         setFiles(prev => prev.map(f => f.id === tempId ? { ...f, uploadProgress: progress } : f))
@@ -89,6 +131,8 @@ export function DocumentUpload({
         status: 'completed',
         uploadProgress: 100,
         url: response.url,
+        order_id: response.order_id,
+        order_title: response.order_title,
       }
       setFiles(prev => prev.map(f => f.id === tempId ? completedFile : f))
       onFileUploaded?.(completedFile)
@@ -127,19 +171,88 @@ export function DocumentUpload({
 
   return (
     <div className={styles.documentUpload}>
+      {/* Seleção de Order - Conceito Mapa Mental */}
+      <Card className={styles.orderSelection}>
+        <div className={styles.orderSelectionHeader}>
+          <h3>📋 Vincular Documento à Order</h3>
+          <p>Todo documento deve estar obrigatoriamente vinculado a uma Order (conceito mapa mental)</p>
+        </div>
+        
+        {isLoadingOrders ? (
+          <div className={styles.loading}>Carregando Orders...</div>
+        ) : orders.length === 0 ? (
+          <div className={styles.noOrders}>
+            <p>❌ Nenhuma Order encontrada. Crie uma Order primeiro em:</p>
+            <Button onClick={() => window.location.href = '/orders'}>
+              Gerenciar Orders
+            </Button>
+          </div>
+        ) : (
+          <div className={styles.orderSelectContainer}>
+            <label htmlFor="order-select" className={styles.orderLabel}>
+              Selecionar Order:
+            </label>
+            <select
+              id="order-select"
+              value={selectedOrderId}
+              onChange={(e) => setSelectedOrderId(e.target.value)}
+              className={styles.orderSelect}
+            >
+              <option value="">Selecione uma Order...</option>
+              {orders.map((order) => (
+                <option key={order.order_id} value={order.order_id}>
+                  {order.title} - {order.customer_name} ({order.order_type})
+                </option>
+              ))}
+            </select>
+            
+            {selectedOrderId && (
+              <div className={styles.selectedOrderInfo}>
+                {(() => {
+                  const selectedOrder = orders.find(o => o.order_id === selectedOrderId)
+                  return selectedOrder ? (
+                    <div className={styles.orderInfo}>
+                      <span className={styles.orderIcon}>🎯</span>
+                      <div>
+                        <strong>{selectedOrder.title}</strong>
+                        <br />
+                        <small>{selectedOrder.customer_name} • {selectedOrder.status}</small>
+                      </div>
+                    </div>
+                  ) : null
+                })()}
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+
       <div
-        className={`${styles.uploadArea} ${isDragOver ? styles.dragOver : ''}`}
+        className={`${styles.uploadArea} ${isDragOver ? styles.dragOver : ''} ${!selectedOrderId ? styles.disabled : ''}`}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
       >
         <div className={styles.uploadContent}>
           <div className={styles.uploadIcon}>📁</div>
-          <h3>Arraste arquivos aqui ou clique para selecionar</h3>
-          <p>
-            Tipos aceitos: {acceptedTypes.join(', ')}<br />
-            Tamanho máximo: {formatFileSize(maxSizeBytes)} por arquivo
-          </p>
+          {selectedOrderId ? (
+            <>
+              <h3>Arraste arquivos aqui ou clique para selecionar</h3>
+              <p>
+                Tipos aceitos: {acceptedTypes.join(', ')}<br />
+                Tamanho máximo: {formatFileSize(maxSizeBytes)} por arquivo<br />
+                <strong>🎯 Vinculado à Order selecionada</strong>
+              </p>
+            </>
+          ) : (
+            <>
+              <h3>Selecione uma Order primeiro</h3>
+              <p>
+                ⚠️ Todo documento deve estar vinculado a uma Order.<br />
+                Selecione uma Order acima para continuar.
+              </p>
+            </>
+          )}
           
           <input
             type="file"
@@ -199,6 +312,11 @@ export function DocumentUpload({
                 {file.status === 'completed' && (
                   <div className={styles.statusSuccess}>
                     <span>✅ Upload concluído</span>
+                    {file.order_title && (
+                      <div className={styles.orderLink}>
+                        📋 Vinculado à: <strong>{file.order_title}</strong>
+                      </div>
+                    )}
                     {file.url && (
                       <a 
                         href={file.url} 

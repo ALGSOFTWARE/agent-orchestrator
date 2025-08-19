@@ -8,6 +8,94 @@
   margin: 0 auto;
 }
 
+/* Order Selection */
+.orderSelection {
+  padding: var(--space-6);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-lg);
+}
+
+.orderSelectionHeader h3 {
+  margin: 0 0 var(--space-2) 0;
+  color: var(--color-text-primary);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.orderSelectionHeader p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+}
+
+.loading {
+  text-align: center;
+  padding: var(--space-4);
+  color: var(--color-text-secondary);
+}
+
+.noOrders {
+  text-align: center;
+  padding: var(--space-4);
+}
+
+.noOrders p {
+  margin-bottom: var(--space-4);
+  color: var(--color-text-secondary);
+}
+
+.orderSelectContainer {
+  margin-top: var(--space-4);
+}
+
+.orderLabel {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.orderSelect {
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  font-size: 1rem;
+  background: var(--color-background);
+  color: var(--color-text-primary);
+}
+
+.orderSelect:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-100);
+}
+
+.selectedOrderInfo {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-primary-50);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--color-primary-200);
+}
+
+.orderInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.orderIcon {
+  font-size: 1.5rem;
+}
+
+.orderLink {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  margin-top: var(--space-1);
+}
+
 /* Upload Area */
 .uploadArea {
   border: 2px dashed var(--color-border);
@@ -29,6 +117,19 @@
   border-color: var(--color-primary);
   background: var(--color-primary-100);
   transform: scale(1.02);
+}
+
+.uploadArea.disabled {
+  border-color: var(--color-border-disabled);
+  background: var(--color-background-disabled);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.uploadArea.disabled:hover {
+  border-color: var(--color-border-disabled);
+  background: var(--color-background-disabled);
+  transform: none;
 }
 
 .uploadContent {

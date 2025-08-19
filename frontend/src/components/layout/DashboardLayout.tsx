@@ -22,8 +22,10 @@ interface NavItem {
 const navigationItems: NavItem[] = [
   { href: '/agents', label: 'Agentes de IA', icon: '🤖' },
   { href: '/chat', label: 'Sandbox de Agentes', icon: '💬', badge: 'Público' },
+  { href: '/orders', label: 'Orders', icon: '📋', badge: 'Super-contêiner' },
+  { href: '/search', label: 'Busca Semântica', icon: '🔍', badge: 'AI-Powered' },
   { href: '/monitoring', label: 'Monitoramento', icon: '📊', badge: 'Live' },
-  { href: '/api-explorer', label: 'API Explorer', icon: '🔍' },
+  { href: '/api-explorer', label: 'API Explorer', icon: '🛠️' },
   { href: '/documents', label: 'Documentos', icon: '📁' },
   { href: '/settings', label: 'Configurações', icon: '⚙️' }
 ]
@@ -152,13 +154,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
             <div className={styles.quickActionsList}>
               <Link
-                href="/agents/playground"
+                href="/search"
                 className={styles.quickAction}
-                title="Teste rápido de agentes"
+                title="Busca semântica de documentos"
               >
-                <span className={styles.quickActionIcon}>⚡</span>
+                <span className={styles.quickActionIcon}>🔍</span>
                 {!sidebarCollapsed && (
-                  <span className={styles.quickActionLabel}>Teste Rápido</span>
+                  <span className={styles.quickActionLabel}>Busca AI</span>
                 )}
               </Link>
               <Link

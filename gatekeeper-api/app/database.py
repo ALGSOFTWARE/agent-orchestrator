@@ -11,7 +11,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from beanie import init_beanie
 from typing import Optional, List
 
-from .models import User, Client, Context, Container, Shipment, TrackingEvent
+from .models import User, Client, Context, Container, Shipment, TrackingEvent, Order, DocumentFile, CTEDocument, BLDocument
 
 logger = logging.getLogger("GatekeeperAPI.Database")
 
@@ -51,7 +51,11 @@ async def init_database():
                 Context,
                 Container,
                 Shipment,
-                TrackingEvent
+                TrackingEvent,
+                Order,
+                DocumentFile,
+                CTEDocument,
+                BLDocument
             ]
         )
         
@@ -81,6 +85,31 @@ async def create_indexes():
         
         # Índices para Container
         await Container.create_index("container_number", unique=True)
+        
+        # Índices para Order (super-contêiner)
+        await Order.create_index("order_id", unique=True)
+        await Order.create_index("customer_name")
+        await Order.create_index("status")
+        await Order.create_index("order_type")
+        await Order.create_index("created_at")
+        await Order.create_index("last_activity")
+        
+        # Índices para DocumentFile (busca e relacionamentos)
+        await DocumentFile.create_index("file_id", unique=True)
+        await DocumentFile.create_index("order_id")
+        await DocumentFile.create_index("category")
+        await DocumentFile.create_index("processing_status")
+        await DocumentFile.create_index("uploaded_at")
+        await DocumentFile.create_index("original_name")
+        
+        # Índice especial para busca semântica (será usado para vector search)
+        await DocumentFile.create_index("embedding")
+        
+        # Índices para CTEDocument
+        await CTEDocument.create_index("cte_number", unique=True)
+        
+        # Índices para BLDocument  
+        await BLDocument.create_index("bl_number", unique=True)
         
         logger.info("✅ Índices criados com sucesso")
         
@@ -116,7 +145,7 @@ async def get_database_info():
         
         # Estatísticas das collections principais
         stats = {}
-        for collection_name in ["users", "clients", "contexts"]:
+        for collection_name in ["users", "clients", "contexts", "orders", "document_files", "cte_documents", "bl_documents"]:
             if collection_name in collections:
                 count = await db[collection_name].count_documents({})
                 stats[collection_name] = {"count": count}
@@ -215,3 +244,61 @@ class DatabaseService:
         except Exception as e:
             logger.error(f"Erro ao recuperar contexto: {str(e)}")
             return []
+    
+    @staticmethod
+    async def get_order_by_id(order_id: str) -> Optional["Order"]:
+        """Busca order por ID"""
+        try:
+            from .models import Order
+            return await Order.find_one(Order.order_id == order_id)
+        except Exception as e:
+            logger.error(f"Erro ao buscar order: {str(e)}")
+            return None
+    
+    @staticmethod
+    async def get_documents_by_order(order_id: str) -> List["DocumentFile"]:
+        """Busca todos os documentos de uma order"""
+        try:
+            from .models import DocumentFile
+            return await DocumentFile.find(DocumentFile.order_id == order_id).to_list()
+        except Exception as e:
+            logger.error(f"Erro ao buscar documentos da order: {str(e)}")
+            return []
+    
+    @staticmethod
+    async def search_documents_by_text(query: str, limit: int = 20) -> List["DocumentFile"]:
+        """Busca documentos por texto extraído"""
+        try:
+            from .models import DocumentFile
+            # Busca simples por texto usando regex
+            documents = await DocumentFile.find({
+                "$or": [
+                    {"original_name": {"$regex": query, "$options": "i"}},
+                    {"text_content": {"$regex": query, "$options": "i"}},
+                    {"tags": {"$regex": query, "$options": "i"}}
+                ]
+            }).limit(limit).to_list()
+            return documents
+        except Exception as e:
+            logger.error(f"Erro ao buscar documentos: {str(e)}")
+            return []
+    
+    @staticmethod
+    async def get_recent_orders(limit: int = 10) -> List["Order"]:
+        """Busca orders mais recentes"""
+        try:
+            from .models import Order
+            return await Order.find({}).sort(-Order.last_activity).limit(limit).to_list()
+        except Exception as e:
+            logger.error(f"Erro ao buscar orders recentes: {str(e)}")
+            return []
+
+
+async def get_mongo_client() -> AsyncIOMotorClient:
+    """
+    Retorna o cliente MongoDB global para uso em serviços desacoplados
+    """
+    global client
+    if not client:
+        await init_database()
+    return client
