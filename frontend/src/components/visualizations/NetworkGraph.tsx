@@ -9,6 +9,7 @@ interface GraphNode {
   type: 'order' | 'document'
   label: string
   data: any
+  highlighted?: boolean
 }
 
 interface GraphEdge {
@@ -65,44 +66,226 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
       const documentId = node.data.id || node.data.file_id
       const metadata = await gatekeeperClient.getRaw(`/files/${documentId}/metadata`)
       
-      // Abrir em nova aba com JSON formatado
-      const newWindow = window.open()
+      // Criar uma janela modal mais robusta
+      const newWindow = window.open('', '_blank', 'width=1000,height=700,scrollbars=yes,resizable=yes')
       if (newWindow) {
         newWindow.document.write(`
-          <html>
+          <!DOCTYPE html>
+          <html lang="pt-BR">
             <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
               <title>Metadados - ${node.label}</title>
               <style>
-                body { font-family: 'Monaco', 'Consolas', monospace; margin: 20px; background: #f5f5f5; }
-                .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-                .header { margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
-                .title { color: #333; margin: 0; }
-                .subtitle { color: #666; margin: 5px 0 0 0; }
-                pre { background: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto; border: 1px solid #e9ecef; }
-                .actions { margin-top: 15px; }
-                .btn { background: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 4px; margin-right: 10px; cursor: pointer; }
-                .btn:hover { background: #0056b3; }
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { 
+                  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  min-height: 100vh;
+                  padding: 20px;
+                }
+                .container { 
+                  background: white; 
+                  padding: 30px; 
+                  border-radius: 16px; 
+                  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+                  max-width: 900px;
+                  margin: 0 auto;
+                }
+                .header { 
+                  margin-bottom: 30px; 
+                  border-bottom: 2px solid #e5e7eb; 
+                  padding-bottom: 20px;
+                  text-align: center;
+                }
+                .title { 
+                  color: #1f2937; 
+                  font-size: 28px;
+                  font-weight: 700;
+                  margin-bottom: 8px;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  gap: 12px;
+                }
+                .subtitle { 
+                  color: #6b7280; 
+                  font-size: 16px;
+                  font-weight: 500;
+                }
+                .json-container {
+                  background: #f8fafc;
+                  border: 2px solid #e2e8f0;
+                  border-radius: 12px;
+                  padding: 0;
+                  margin: 20px 0;
+                  overflow: hidden;
+                }
+                .json-header {
+                  background: #1e293b;
+                  color: white;
+                  padding: 12px 20px;
+                  font-weight: 600;
+                  font-size: 14px;
+                  display: flex;
+                  justify-content: between;
+                  align-items: center;
+                }
+                pre { 
+                  background: transparent;
+                  padding: 20px; 
+                  overflow-x: auto; 
+                  font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
+                  font-size: 13px;
+                  line-height: 1.5;
+                  color: #1e293b;
+                  max-height: 400px;
+                  overflow-y: auto;
+                }
+                .actions { 
+                  margin-top: 25px;
+                  display: flex;
+                  gap: 12px;
+                  justify-content: center;
+                  flex-wrap: wrap;
+                }
+                .btn { 
+                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  color: white; 
+                  border: none; 
+                  padding: 12px 24px; 
+                  border-radius: 8px; 
+                  cursor: pointer; 
+                  font-weight: 600;
+                  font-size: 14px;
+                  transition: all 0.2s ease;
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                }
+                .btn:hover { 
+                  transform: translateY(-2px);
+                  box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+                }
+                .btn.secondary {
+                  background: #6b7280;
+                }
+                .btn.secondary:hover {
+                  background: #4b5563;
+                  box-shadow: 0 10px 20px rgba(107, 114, 128, 0.4);
+                }
+                .stats {
+                  display: grid;
+                  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                  gap: 15px;
+                  margin: 20px 0;
+                }
+                .stat-card {
+                  background: #f1f5f9;
+                  padding: 15px;
+                  border-radius: 8px;
+                  text-align: center;
+                  border: 1px solid #e2e8f0;
+                }
+                .stat-label {
+                  font-size: 12px;
+                  color: #64748b;
+                  font-weight: 600;
+                  text-transform: uppercase;
+                  letter-spacing: 0.5px;
+                }
+                .stat-value {
+                  font-size: 18px;
+                  color: #1e293b;
+                  font-weight: 700;
+                  margin-top: 4px;
+                }
               </style>
             </head>
             <body>
               <div class="container">
                 <div class="header">
-                  <h1 class="title">📄 ${node.label}</h1>
-                  <p class="subtitle">Metadados completos do documento</p>
+                  <h1 class="title">
+                    <span>📄</span>
+                    <span>${node.label}</span>
+                  </h1>
+                  <p class="subtitle">Metadados completos do documento digital</p>
                 </div>
-                <pre>${JSON.stringify(metadata, null, 2)}</pre>
+                
+                <div class="stats">
+                  <div class="stat-card">
+                    <div class="stat-label">Tipo</div>
+                    <div class="stat-value">${metadata?.document?.file_type || 'N/A'}</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">Tamanho</div>
+                    <div class="stat-value">${metadata?.document?.size_bytes ? Math.round(metadata.document.size_bytes / 1024) + ' KB' : 'N/A'}</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">Status</div>
+                    <div class="stat-value">${metadata?.document?.processing_status || 'N/A'}</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">Embedding</div>
+                    <div class="stat-value">${metadata?.document?.has_embedding ? '✅ Sim' : '❌ Não'}</div>
+                  </div>
+                </div>
+                
+                <div class="json-container">
+                  <div class="json-header">
+                    📊 Dados JSON Completos
+                  </div>
+                  <pre id="json-content">${JSON.stringify(metadata, null, 2)}</pre>
+                </div>
+                
                 <div class="actions">
-                  <button class="btn" onclick="navigator.clipboard.writeText('${JSON.stringify(metadata)}')">
-                    📋 Copiar JSON
+                  <button class="btn" onclick="copyToClipboard()">
+                    <span>📋</span>
+                    <span>Copiar JSON</span>
                   </button>
-                  <button class="btn" onclick="window.close()">
-                    ✖️ Fechar
+                  <button class="btn" onclick="downloadJson()">
+                    <span>💾</span>
+                    <span>Download JSON</span>
+                  </button>
+                  <button class="btn secondary" onclick="window.close()">
+                    <span>✖️</span>
+                    <span>Fechar</span>
                   </button>
                 </div>
               </div>
+              
+              <script>
+                function copyToClipboard() {
+                  const jsonText = document.getElementById('json-content').textContent;
+                  navigator.clipboard.writeText(jsonText).then(() => {
+                    const btn = event.target.closest('.btn');
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '<span>✅</span><span>Copiado!</span>';
+                    setTimeout(() => {
+                      btn.innerHTML = originalText;
+                    }, 2000);
+                  }).catch(err => {
+                    alert('Erro ao copiar: ' + err);
+                  });
+                }
+                
+                function downloadJson() {
+                  const jsonText = document.getElementById('json-content').textContent;
+                  const blob = new Blob([jsonText], { type: 'application/json' });
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = '${node.label.replace(/[^a-zA-Z0-9]/g, '_')}_metadata.json';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  window.URL.revokeObjectURL(url);
+                }
+              </script>
             </body>
           </html>
         `)
+        newWindow.document.close()
       }
     } catch (error) {
       console.error('Erro ao buscar metadados:', error)
@@ -238,11 +421,70 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
     const width = svgRef.current.clientWidth
     const margin = 20
 
-    // Configurar simulação de força
+    // Calcular parâmetros dinâmicos baseado na quantidade de nós
+    const orderNodes = nodes.filter(n => n.type === 'order')
+    const docNodes = nodes.filter(n => n.type === 'document')
+    
+    // Ajustar força de repulsão baseado na densidade
+    const nodeCount = nodes.length
+    const density = nodeCount / (width * height / 10000) // densidade por 100x100px
+    const repulsionStrength = Math.max(-800, Math.min(-100, -300 * Math.sqrt(density)))
+    
+    // Distância entre links baseada no número de conexões
+    const linkDistance = Math.max(80, Math.min(200, 150 - nodeCount * 0.5))
+    
+    console.log(`📊 Auto-layout: ${nodeCount} nós, densidade: ${density.toFixed(2)}, repulsão: ${repulsionStrength}, distância: ${linkDistance}`)
+
+    // Posicionamento inicial inteligente dos nós
+    const ordersCount = orderNodes.length
+    if (ordersCount > 0) {
+      // Distribuir orders em círculo ou grid
+      if (ordersCount <= 8) {
+        // Círculo para poucas orders
+        const radius = Math.min(width, height) * 0.3
+        orderNodes.forEach((node: any, i: number) => {
+          const angle = (2 * Math.PI * i) / ordersCount
+          node.x = width / 2 + radius * Math.cos(angle)
+          node.y = height / 2 + radius * Math.sin(angle)
+          node.fx = node.x // Fixar posição inicial
+          node.fy = node.y
+        })
+      } else {
+        // Grid para muitas orders
+        const cols = Math.ceil(Math.sqrt(ordersCount))
+        const rows = Math.ceil(ordersCount / cols)
+        const cellWidth = width * 0.8 / cols
+        const cellHeight = height * 0.8 / rows
+        const startX = width * 0.1
+        const startY = height * 0.1
+        
+        orderNodes.forEach((node: any, i: number) => {
+          const row = Math.floor(i / cols)
+          const col = i % cols
+          node.x = startX + col * cellWidth + cellWidth / 2
+          node.y = startY + row * cellHeight + cellHeight / 2
+          node.fx = node.x
+          node.fy = node.y
+        })
+      }
+      
+      // Liberar posições fixas após um tempo para permitir ajustes
+      setTimeout(() => {
+        orderNodes.forEach((node: any) => {
+          node.fx = null
+          node.fy = null
+        })
+      }, 1000)
+    }
+
+    // Configurar simulação de força com parâmetros dinâmicos
     const simulation = d3.forceSimulation(nodes as any)
-      .force("link", d3.forceLink(edges).id((d: any) => d.id).distance(100))
-      .force("charge", d3.forceManyBody().strength(-300))
+      .force("link", d3.forceLink(edges).id((d: any) => d.id).distance(linkDistance))
+      .force("charge", d3.forceManyBody().strength(repulsionStrength))
       .force("center", d3.forceCenter(width / 2, height / 2))
+      .force("collision", d3.forceCollide().radius((d: any) => d.type === 'order' ? 35 : 25))
+      .force("x", d3.forceX(width / 2).strength(0.05))
+      .force("y", d3.forceY(height / 2).strength(0.05))
 
     // Criar container principal
     const container = svg.append("g")
@@ -258,7 +500,6 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
     
     // Click no SVG para fechar menu contextual
     svg.on("click", () => {
-      console.log('SVG clicado - fechando menu contextual')
       closeContextMenu()
     })
 
@@ -297,9 +538,14 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
     // Círculos dos nodes
     node.append("circle")
       .attr("r", (d: any) => d.type === 'order' ? 20 : 15)
-      .attr("fill", (d: any) => d.type === 'order' ? "#3b82f6" : "#10b981")
-      .attr("stroke", "#fff")
-      .attr("stroke-width", 2)
+      .attr("fill", (d: any) => {
+        if (d.highlighted) {
+          return d.type === 'order' ? "#f59e0b" : "#ef4444" // Cores de destaque (amarelo e vermelho)
+        }
+        return d.type === 'order' ? "#3b82f6" : "#10b981" // Cores padrão
+      })
+      .attr("stroke", (d: any) => d.highlighted ? "#fbbf24" : "#fff")
+      .attr("stroke-width", (d: any) => d.highlighted ? 4 : 2)
 
     // Ícones nos nodes
     node.append("text")
@@ -314,7 +560,6 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
     node.on("click", (event: MouseEvent, d: any) => {
       event.preventDefault()
       event.stopPropagation()
-      console.log('Nó clicado:', d.label, d.type)
       handleNodeClick(event, d)
     })
 
@@ -387,6 +632,46 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
           .style("opacity", 0)
       })
 
+    // Função para ajustar zoom automático
+    const autoFitView = () => {
+      if (nodes.length === 0) return
+      
+      // Calcular bounds dos nós após simulação
+      setTimeout(() => {
+        const nodePositions = nodes.map((d: any) => ({
+          x: d.x || width/2,
+          y: d.y || height/2
+        }))
+        
+        const padding = 50
+        const minX = Math.min(...nodePositions.map(d => d.x)) - padding
+        const maxX = Math.max(...nodePositions.map(d => d.x)) + padding
+        const minY = Math.min(...nodePositions.map(d => d.y)) - padding  
+        const maxY = Math.max(...nodePositions.map(d => d.y)) + padding
+        
+        const boundsWidth = maxX - minX
+        const boundsHeight = maxY - minY
+        
+        // Calcular scale para fit na tela
+        const scaleX = width / boundsWidth
+        const scaleY = height / boundsHeight
+        const scale = Math.min(scaleX, scaleY, 2) // máximo 2x zoom
+        
+        // Calcular translate para centralizar
+        const centerX = (minX + maxX) / 2
+        const centerY = (minY + maxY) / 2
+        const translateX = width / 2 - centerX * scale
+        const translateY = height / 2 - centerY * scale
+        
+        console.log(`🎯 Auto-fit: scale=${scale.toFixed(2)}, translate=(${translateX.toFixed(0)}, ${translateY.toFixed(0)})`)
+        
+        // Aplicar transform suavemente
+        svg.transition()
+          .duration(1500)
+          .call(zoom.transform as any, d3.zoomIdentity.translate(translateX, translateY).scale(scale))
+      }, 2000) // Aguardar simulação se estabilizar
+    }
+
     // Atualizar posições na simulação
     simulation.on("tick", () => {
       link
@@ -398,6 +683,9 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
       node
         .attr("transform", (d: any) => `translate(${d.x},${d.y})`)
     })
+    
+    // Executar auto-fit quando simulação terminar
+    simulation.on("end", autoFitView)
 
     // Cleanup
     return () => {
@@ -434,6 +722,47 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
     }
   }
 
+  const handleAutoFit = () => {
+    if (!svgRef.current || nodes.length === 0) return
+    
+    const svg = d3.select(svgRef.current)
+    const width = svgRef.current.clientWidth
+    const height = svgRef.current.getBoundingClientRect().height
+    
+    // Calcular bounds dos nós atuais
+    const nodePositions = nodes.map((d: any) => ({
+      x: d.x || width/2,
+      y: d.y || height/2
+    }))
+    
+    const padding = 50
+    const minX = Math.min(...nodePositions.map(d => d.x)) - padding
+    const maxX = Math.max(...nodePositions.map(d => d.x)) + padding
+    const minY = Math.min(...nodePositions.map(d => d.y)) - padding  
+    const maxY = Math.max(...nodePositions.map(d => d.y)) + padding
+    
+    const boundsWidth = maxX - minX
+    const boundsHeight = maxY - minY
+    
+    // Calcular scale para fit na tela
+    const scaleX = width / boundsWidth
+    const scaleY = height / boundsHeight
+    const scale = Math.min(scaleX, scaleY, 3) // máximo 3x zoom
+    
+    // Calcular translate para centralizar
+    const centerX = (minX + maxX) / 2
+    const centerY = (minY + maxY) / 2
+    const translateX = width / 2 - centerX * scale
+    const translateY = height / 2 - centerY * scale
+    
+    console.log(`🎯 Manual Auto-fit: scale=${scale.toFixed(2)}`)
+    
+    // Aplicar transform suavemente
+    svg.transition()
+      .duration(1000)
+      .call(d3.zoom().transform as any, d3.zoomIdentity.translate(translateX, translateY).scale(scale))
+  }
+
   return (
     <div className="relative w-full h-full">
       {/* Zoom Controls */}
@@ -453,6 +782,13 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
           −
         </button>
         <button
+          onClick={handleAutoFit}
+          className="w-8 h-8 bg-blue-500 text-white shadow-md rounded border hover:bg-blue-600 flex items-center justify-center text-xs font-bold"
+          title="Auto Fit - Mostrar todos os nós"
+        >
+          ⚡
+        </button>
+        <button
           onClick={handleReset}
           className="w-8 h-8 bg-white shadow-md rounded border hover:bg-gray-50 flex items-center justify-center text-xs"
           title="Reset Zoom"
@@ -462,67 +798,83 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
       </div>
       
       {/* Help Text */}
-      <div className="absolute bottom-4 left-4 text-xs text-gray-500 bg-white bg-opacity-90 px-2 py-1 rounded">
-        Arraste para mover • Roda do mouse para zoom • Clique nos nós para ações • Arraste nodes para reposicionar
+      <div className="absolute bottom-4 left-4 text-xs text-gray-500 bg-white bg-opacity-90 px-2 py-1 rounded max-w-md">
+        <strong>⚡ Auto Fit:</strong> Ajusta zoom automaticamente • <strong>Arraste:</strong> mover visualização • <strong>Roda do mouse:</strong> zoom • <strong>Clique nos nós:</strong> ações • <strong>Arraste nós:</strong> reposicionar
       </div>
 
       {/* Context Menu */}
-      {console.log('Context Menu State:', contextMenu)}
       {contextMenu.visible && contextMenu.node && (
         <div 
-          className="absolute bg-white rounded-lg shadow-lg border border-gray-200 py-2 min-w-48"
+          className="absolute bg-white rounded-lg shadow-xl border border-gray-200 py-1 min-w-52 backdrop-blur-sm"
           style={{ 
             left: contextMenu.x, 
             top: contextMenu.y,
             transform: 'translate(-50%, -10px)',
             zIndex: 9999,
-            position: 'fixed'
+            position: 'fixed',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
           }}
         >
-          <div className="px-3 py-2 border-b border-gray-100">
-            <div className="font-semibold text-gray-900 text-sm">
-              {contextMenu.node.type === 'order' ? '📋' : '📄'} {contextMenu.node.label}
+          <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <div className="font-semibold text-gray-900 text-sm flex items-center gap-2">
+              <span className="text-lg">{contextMenu.node.type === 'order' ? '📋' : '📄'}</span>
+              <span className="truncate max-w-36">{contextMenu.node.label}</span>
             </div>
-            <div className="text-xs text-gray-500">
-              {contextMenu.node.type === 'order' ? 'Super-contêiner' : 'Documento'}
+            <div className="text-xs text-gray-600 mt-1 font-medium">
+              {contextMenu.node.type === 'order' ? 'Super-contêiner Logístico' : 'Documento Digital'}
             </div>
           </div>
           
-          {contextMenu.node.type === 'document' && (
-            <>
+          <div className="py-1">
+            {contextMenu.node.type === 'document' && (
+              <>
+                <button
+                  onClick={() => viewMetadata(contextMenu.node!)}
+                  disabled={loading}
+                  className="w-full px-4 py-3 text-left text-sm hover:bg-blue-50 hover:text-blue-700 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                >
+                  <span className="text-blue-600">📄</span>
+                  <div>
+                    <div className="font-medium">Ver Metadados</div>
+                    <div className="text-xs text-gray-500">Abrir JSON completo</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => downloadDocument(contextMenu.node!)}
+                  disabled={loading}
+                  className="w-full px-4 py-3 text-left text-sm hover:bg-green-50 hover:text-green-700 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                >
+                  <span className="text-green-600">💾</span>
+                  <div>
+                    <div className="font-medium">Baixar Documento</div>
+                    <div className="text-xs text-gray-500">Download do arquivo</div>
+                  </div>
+                </button>
+              </>
+            )}
+            
+            {contextMenu.node.type === 'order' && (
               <button
-                onClick={() => viewMetadata(contextMenu.node!)}
+                onClick={() => viewOrder(contextMenu.node!)}
                 disabled={loading}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
+                className="w-full px-4 py-3 text-left text-sm hover:bg-orange-50 hover:text-orange-700 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
               >
-                📄 Ver Metadados (JSON)
+                <span className="text-orange-600">📋</span>
+                <div>
+                  <div className="font-medium">Ver Detalhes</div>
+                  <div className="text-xs text-gray-500">Informações da Order</div>
+                </div>
               </button>
-              <button
-                onClick={() => downloadDocument(contextMenu.node!)}
-                disabled={loading}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
-              >
-                💾 Baixar Documento
-              </button>
-            </>
-          )}
+            )}
+          </div>
           
-          {contextMenu.node.type === 'order' && (
-            <button
-              onClick={() => viewOrder(contextMenu.node!)}
-              disabled={loading}
-              className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
-            >
-              📋 Ver Detalhes da Order
-            </button>
-          )}
-          
-          <div className="border-t border-gray-100 mt-1">
+          <div className="border-t border-gray-100">
             <button
               onClick={closeContextMenu}
-              className="w-full px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-50"
+              className="w-full px-4 py-2 text-left text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors duration-200 flex items-center gap-2"
             >
-              ✖️ Fechar
+              <span>✖️</span>
+              <span>Fechar</span>
             </button>
           </div>
         </div>

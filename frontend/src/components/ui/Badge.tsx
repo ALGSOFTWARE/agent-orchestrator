@@ -14,12 +14,14 @@ const badgeVariants = cva(styles.badge, {
       success: styles.success,
       warning: styles.warning,
       error: styles.error,
-      outline: styles.outline
+      outline: styles.outline,
+      info: styles.info // Added info variant
     },
     size: {
       sm: styles.sizeSmall,
       md: styles.sizeMedium,
-      lg: styles.sizeLarge
+      lg: styles.sizeLarge,
+      small: styles.sizeSmall // Added small size, mapping to sm
     }
   },
   defaultVariants: {

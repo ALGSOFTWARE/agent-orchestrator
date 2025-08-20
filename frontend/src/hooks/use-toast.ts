@@ -6,6 +6,9 @@ type ToasterToast = {
   title?: React.ReactNode
   description?: React.ReactNode
   action?: React.ReactNode
+  variant?: "default" | "destructive" | "success" | "warning" | "info"
+  open?: boolean
+  onOpenChange?: (open: boolean) => void // Added this line
 }
 
 const TOAST_LIMIT = 5
@@ -13,8 +16,8 @@ const TOAST_REMOVE_DELAY = 1000000
 
 type ToastAction = { type: "ADD_TOAST"; toast: ToasterToast }
   | { type: "UPDATE_TOAST"; toast: Partial<ToasterToast> & { id: string } }
-  | { type: "DISMISS_TOAST"; toastId?: ToasterToast['id'] }
-  | { type: "REMOVE_TOAST"; toastId?: ToasterToast['id'] }
+  | { type: "DISMISS_TOAST"; toastId?: string } // Changed ToasterToast['id'] to string
+  | { type: "REMOVE_TOAST"; toastId?: string } // Changed ToasterToast['id'] to string
 
 let count = 0
 
@@ -136,7 +139,18 @@ function toast(props: Toast) {
   }
 }
 
-function useToast() {
+type ToastFunction = ((props: Toast) => { id: string; dismiss: () => void; update: (props: ToasterToast) => void; }) & {
+  success: (title: string, description?: string) => void;
+  error: (title: string, description?: string) => void;
+  warning: (title: string, description?: string) => void;
+  info: (title: string, description?: string) => void;
+};
+
+function useToast(): {
+  toasts: ToasterToast[];
+  toast: ToastFunction;
+  dismiss: (toastId?: string) => void;
+} {
   const [state, setState] = React.useState<State>(memoryState)
 
   React.useEffect(() => {
@@ -149,10 +163,33 @@ function useToast() {
     }
   }, [state])
 
+  const extendedToast: ToastFunction = Object.assign(toast, {
+    success: (title: string, description?: string) => toast({
+      title,
+      description,
+      variant: "success" as const
+    }),
+    error: (title: string, description?: string) => toast({
+      title,
+      description,
+      variant: "destructive" as const
+    }),
+    warning: (title: string, description?: string) => toast({
+      title,
+      description,
+      variant: "warning" as const
+    }),
+    info: (title: string, description?: string) => toast({
+      title,
+      description,
+      variant: "info" as const
+    })
+  })
+
   return {
     ...state,
-    toast,
-    dismiss: (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId }),
+    toast: extendedToast,
+    dismiss: (toastId?: string) => dispatch({ type: "DISMISS_TOAST", ...(toastId !== undefined && { toastId }) }),
   }
 }
 
