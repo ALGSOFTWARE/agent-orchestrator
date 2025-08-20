@@ -453,6 +453,23 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
       const linkDistance = Math.max(80, Math.min(200, 150 - nodeCount * 0.5))
       
       console.log(`📊 Auto-layout: ${nodeCount} nós, densidade: ${density.toFixed(2)}, repulsão: ${repulsionStrength}, distância: ${linkDistance}`)
+      console.log(`🔗 NetworkGraph edges received:`, edges?.length || 0, edges)
+      console.log(`📋 Order nodes:`, orderNodes?.length || 0, orderNodes?.map(n => n.id))
+      console.log(`📄 Document nodes:`, docNodes?.length || 0, docNodes?.map(n => n.id))
+      
+      // Validar se todas as edges referenciam nós existentes
+      const nodeIds = new Set(nodes.map(n => n.id))
+      const validEdges = edges.filter(edge => {
+        const sourceExists = nodeIds.has(edge.source)
+        const targetExists = nodeIds.has(edge.target)
+        if (!sourceExists) console.warn(`⚠️ Edge source not found: ${edge.source}`)
+        if (!targetExists) console.warn(`⚠️ Edge target not found: ${edge.target}`)
+        return sourceExists && targetExists
+      })
+      console.log(`✅ Valid edges: ${validEdges.length}/${edges.length}`)
+      
+      // Usar apenas edges válidas
+      const finalEdges = validEdges
 
       // Posicionamento inicial inteligente dos nós
       const ordersCount = orderNodes.length
@@ -497,13 +514,26 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
       }
 
       // Configurar simulação de força com parâmetros dinâmicos
+      console.log(`🔗 Setting up D3 forceLink with ${finalEdges.length} valid edges`)
+      const linkForce = d3.forceLink(finalEdges).id((d: any) => d.id).distance(linkDistance)
+      console.log(`🔗 Link force created, checking edge resolution...`)
+      
       const simulation = d3.forceSimulation(nodes as any)
-        .force("link", d3.forceLink(edges).id((d: any) => d.id).distance(linkDistance))
+        .force("link", linkForce)
         .force("charge", d3.forceManyBody().strength(repulsionStrength))
         .force("center", d3.forceCenter(width / 2, actualHeight / 2))
         .force("collision", d3.forceCollide().radius((d: any) => d.type === 'order' ? 35 : 25))
         .force("x", d3.forceX(width / 2).strength(0.05))
         .force("y", d3.forceY(actualHeight / 2).strength(0.05))
+      
+      // Log para verificar se as edges foram resolvidas corretamente
+      setTimeout(() => {
+        const links = linkForce.links()
+        console.log(`🔗 D3 resolved ${links.length} links:`, links)
+        links.forEach((link: any, i: number) => {
+          console.log(`🔗 Resolved link ${i}:`, link.source?.id || link.source, '→', link.target?.id || link.target)
+        })
+      }, 100)
 
       // Criar container principal
       const container = svg.append("g")
@@ -526,14 +556,21 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
       })
 
       // Criar links (arestas)
+      console.log(`🔗 Creating ${finalEdges.length} valid links/edges`)
+      finalEdges.forEach((edge, i) => {
+        console.log(`🔗 Edge ${i}:`, edge.source, '→', edge.target, '(type:', edge.type, ')')
+      })
+      
       const link = container.selectAll(".link")
-        .data(edges)
+        .data(finalEdges)
         .enter()
         .append("line")
         .attr("class", "link")
         .attr("stroke", "#999")
         .attr("stroke-width", 2)
         .attr("stroke-opacity", 0.6)
+      
+      console.log(`✅ Created ${link.size()} link elements in DOM`)
 
       // Criar nodes (nós)
       const node = container.selectAll(".node")

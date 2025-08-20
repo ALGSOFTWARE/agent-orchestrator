@@ -267,6 +267,9 @@ export default function VisualizationsPage() {
                     onClick={() => {
                       console.log('🔍 Botão Expandir clicado!')
                       console.log('📊 GraphData existe:', !!graphData)
+                      console.log('📊 GraphData content:', graphData)
+                      console.log('📊 Nodes:', graphData?.nodes?.length || 0)
+                      console.log('📊 Edges:', graphData?.edges?.length || 0)
                       console.log('📊 Loading:', loadingGraph)
                       setIsGraphModalOpen(true)
                     }} 
