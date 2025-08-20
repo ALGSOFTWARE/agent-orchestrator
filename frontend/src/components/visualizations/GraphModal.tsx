@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import NetworkGraph from './NetworkGraph'
 import { Search, Loader2, X, FileText, Target } from 'lucide-react'
@@ -46,6 +46,21 @@ export function GraphModal({ isOpen, onClose, nodes, edges, title }: GraphModalP
   const [loadingSearch, setLoadingSearch] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set())
+  const [modalReady, setModalReady] = useState(false)
+
+  // Aguardar modal estar pronto antes de renderizar o grafo
+  useEffect(() => {
+    if (isOpen) {
+      setModalReady(false)
+      // Pequeno delay para garantir que o modal está totalmente renderizado
+      const timer = setTimeout(() => {
+        setModalReady(true)
+      }, 300) // 300ms suficiente para animações de modal
+      return () => clearTimeout(timer)
+    } else {
+      setModalReady(false)
+    }
+  }, [isOpen])
 
   const handleSemanticSearch = async () => {
     if (!searchQuery.trim()) return
@@ -180,14 +195,23 @@ export function GraphModal({ isOpen, onClose, nodes, edges, title }: GraphModalP
         )}
         
         <div className={`${styles.graphContainer} ${showSearch ? styles.graphWithSearch : ''}`}>
-          <NetworkGraph 
-            nodes={nodes.map(node => ({
-              ...node,
-              highlighted: highlightedNodes.has(node.id)
-            }))} 
-            edges={edges} 
-            height={typeof window !== 'undefined' ? window.innerHeight - (showSearch ? 250 : 200) : 800}
-          />
+          {modalReady ? (
+            <NetworkGraph 
+              nodes={nodes.map(node => ({
+                ...node,
+                highlighted: highlightedNodes.has(node.id)
+              }))} 
+              edges={edges} 
+              height={typeof window !== 'undefined' ? window.innerHeight - (showSearch ? 250 : 200) : 800}
+            />
+          ) : (
+            <div className="flex items-center justify-center w-full h-full min-h-[400px]">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Carregando visualização do grafo...</p>
+              </div>
+            </div>
+          )}
         </div>
         
         {/* Search Toggle Button */}
