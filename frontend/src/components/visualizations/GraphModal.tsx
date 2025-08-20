@@ -48,6 +48,16 @@ export function GraphModal({ isOpen, onClose, nodes, edges, title }: GraphModalP
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set())
   const [modalReady, setModalReady] = useState(false)
 
+  // Debug: Log data when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      console.log('🔍 GraphModal opened with data:')
+      console.log('📊 Nodes:', nodes?.length || 0, nodes)
+      console.log('🔗 Edges:', edges?.length || 0, edges)
+      console.log('🏷️ Title:', title)
+    }
+  }, [isOpen, nodes, edges, title])
+
   // Aguardar modal estar pronto antes de renderizar o grafo
   useEffect(() => {
     if (isOpen) {
