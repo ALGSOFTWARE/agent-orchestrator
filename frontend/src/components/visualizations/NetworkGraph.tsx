@@ -415,283 +415,272 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
   useEffect(() => {
     if (!svgRef.current || nodes.length === 0) return
 
-    const svg = d3.select(svgRef.current)
-    svg.selectAll("*").remove() // Limpar conteúdo anterior
-
-    const width = svgRef.current.clientWidth
-    const margin = 20
-
-    // Calcular parâmetros dinâmicos baseado na quantidade de nós
-    const orderNodes = nodes.filter(n => n.type === 'order')
-    const docNodes = nodes.filter(n => n.type === 'document')
-    
-    // Ajustar força de repulsão baseado na densidade
-    const nodeCount = nodes.length
-    const density = nodeCount / (width * height / 10000) // densidade por 100x100px
-    const repulsionStrength = Math.max(-800, Math.min(-100, -300 * Math.sqrt(density)))
-    
-    // Distância entre links baseada no número de conexões
-    const linkDistance = Math.max(80, Math.min(200, 150 - nodeCount * 0.5))
-    
-    console.log(`📊 Auto-layout: ${nodeCount} nós, densidade: ${density.toFixed(2)}, repulsão: ${repulsionStrength}, distância: ${linkDistance}`)
-
-    // Posicionamento inicial inteligente dos nós
-    const ordersCount = orderNodes.length
-    if (ordersCount > 0) {
-      // Distribuir orders em círculo ou grid
-      if (ordersCount <= 8) {
-        // Círculo para poucas orders
-        const radius = Math.min(width, height) * 0.3
-        orderNodes.forEach((node: any, i: number) => {
-          const angle = (2 * Math.PI * i) / ordersCount
-          node.x = width / 2 + radius * Math.cos(angle)
-          node.y = height / 2 + radius * Math.sin(angle)
-          node.fx = node.x // Fixar posição inicial
-          node.fy = node.y
-        })
-      } else {
-        // Grid para muitas orders
-        const cols = Math.ceil(Math.sqrt(ordersCount))
-        const rows = Math.ceil(ordersCount / cols)
-        const cellWidth = width * 0.8 / cols
-        const cellHeight = height * 0.8 / rows
-        const startX = width * 0.1
-        const startY = height * 0.1
-        
-        orderNodes.forEach((node: any, i: number) => {
-          const row = Math.floor(i / cols)
-          const col = i % cols
-          node.x = startX + col * cellWidth + cellWidth / 2
-          node.y = startY + row * cellHeight + cellHeight / 2
-          node.fx = node.x
-          node.fy = node.y
-        })
+    // Aguardar renderização e garantir que temos dimensões válidas
+    const initializeGraph = () => {
+      const svgElement = svgRef.current
+      if (!svgElement) return
+      
+      const rect = svgElement.getBoundingClientRect()
+      const width = rect.width || svgElement.clientWidth || 800
+      const actualHeight = rect.height || svgElement.clientHeight || height || 600
+      
+      console.log(`📊 NetworkGraph dimensions: width=${width}, height=${actualHeight}`)
+      
+      if (width <= 0 || actualHeight <= 0) {
+        console.log(`⏳ NetworkGraph waiting for valid dimensions...`)
+        // Aguardar mais um frame se ainda não temos dimensões
+        setTimeout(initializeGraph, 100)
+        return
       }
       
-      // Liberar posições fixas após um tempo para permitir ajustes
-      setTimeout(() => {
-        orderNodes.forEach((node: any) => {
-          node.fx = null
-          node.fy = null
-        })
-      }, 1000)
-    }
-
-    // Configurar simulação de força com parâmetros dinâmicos
-    const simulation = d3.forceSimulation(nodes as any)
-      .force("link", d3.forceLink(edges).id((d: any) => d.id).distance(linkDistance))
-      .force("charge", d3.forceManyBody().strength(repulsionStrength))
-      .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collision", d3.forceCollide().radius((d: any) => d.type === 'order' ? 35 : 25))
-      .force("x", d3.forceX(width / 2).strength(0.05))
-      .force("y", d3.forceY(height / 2).strength(0.05))
-
-    // Criar container principal
-    const container = svg.append("g")
-
-    // Zoom behavior
-    const zoom = d3.zoom()
-      .scaleExtent([0.5, 3])
-      .on("zoom", (event) => {
-        container.attr("transform", event.transform)
-      })
-
-    svg.call(zoom as any)
-    
-    // Click no SVG para fechar menu contextual
-    svg.on("click", () => {
-      closeContextMenu()
-    })
-
-    // Criar links (arestas)
-    const link = container.selectAll(".link")
-      .data(edges)
-      .enter()
-      .append("line")
-      .attr("class", "link")
-      .attr("stroke", "#999")
-      .attr("stroke-width", 2)
-      .attr("stroke-opacity", 0.6)
-
-    // Criar nodes (nós)
-    const node = container.selectAll(".node")
-      .data(nodes)
-      .enter()
-      .append("g")
-      .attr("class", "node")
-      .call(d3.drag()
-        .on("start", (event, d: any) => {
-          if (!event.active) simulation.alphaTarget(0.3).restart()
-          d.fx = d.x
-          d.fy = d.y
-        })
-        .on("drag", (event, d: any) => {
-          d.fx = event.x
-          d.fy = event.y
-        })
-        .on("end", (event, d: any) => {
-          if (!event.active) simulation.alphaTarget(0)
-          d.fx = null
-          d.fy = null
-        }) as any)
-
-    // Círculos dos nodes
-    node.append("circle")
-      .attr("r", (d: any) => d.type === 'order' ? 20 : 15)
-      .attr("fill", (d: any) => {
-        if (d.highlighted) {
-          return d.type === 'order' ? "#f59e0b" : "#ef4444" // Cores de destaque (amarelo e vermelho)
-        }
-        return d.type === 'order' ? "#3b82f6" : "#10b981" // Cores padrão
-      })
-      .attr("stroke", (d: any) => d.highlighted ? "#fbbf24" : "#fff")
-      .attr("stroke-width", (d: any) => d.highlighted ? 4 : 2)
-
-    // Ícones nos nodes
-    node.append("text")
-      .attr("text-anchor", "middle")
-      .attr("dominant-baseline", "central")
-      .attr("fill", "white")
-      .attr("font-size", (d: any) => d.type === 'order' ? "16px" : "12px")
-      .attr("font-weight", "bold")
-      .text((d: any) => d.type === 'order' ? "📋" : "📄")
-
-    // Adicionar evento de clique nos nós
-    node.on("click", (event: MouseEvent, d: any) => {
-      event.preventDefault()
-      event.stopPropagation()
-      handleNodeClick(event, d)
-    })
-
-    // Adicionar visual de hover
-    node.style("cursor", "pointer")
-      .on("mouseenter", function() {
-        d3.select(this).select("circle")
-          .transition()
-          .duration(200)
-          .attr("r", (d: any) => (d.type === 'order' ? 20 : 15) * 1.1)
-          .attr("stroke-width", 3)
-      })
-      .on("mouseleave", function() {
-        d3.select(this).select("circle")
-          .transition()
-          .duration(200)
-          .attr("r", (d: any) => d.type === 'order' ? 20 : 15)
-          .attr("stroke-width", 2)
-      })
-
-    // Labels dos nodes
-    node.append("text")
-      .attr("text-anchor", "middle")
-      .attr("dy", (d: any) => d.type === 'order' ? 35 : 30)
-      .attr("font-size", "12px")
-      .attr("fill", "#374151")
-      .text((d: any) => {
-        const maxLength = 20
-        return d.label.length > maxLength 
-          ? d.label.substring(0, maxLength) + "..." 
-          : d.label
-      })
-
-    // Tooltip
-    const tooltip = d3.select("body").append("div")
-      .attr("class", "tooltip")
-      .style("opacity", 0)
-      .style("position", "absolute")
-      .style("background", "rgba(0, 0, 0, 0.8)")
-      .style("color", "white")
-      .style("padding", "8px")
-      .style("border-radius", "4px")
-      .style("font-size", "12px")
-      .style("pointer-events", "none")
-      .style("z-index", "1000")
-
-    node
-      .on("mouseover", function(event, d: any) {
-        tooltip.transition()
-          .duration(200)
-          .style("opacity", .9)
-        
-        const content = d.type === 'order' 
-          ? `<strong>Order:</strong> ${d.label}<br/>
-             <strong>Cliente:</strong> ${d.data.customer || 'N/A'}<br/>
-             <strong>Status:</strong> ${d.data.status || 'N/A'}<br/>
-             <strong>Documentos:</strong> ${d.data.total_documents || 0}`
-          : `<strong>Documento:</strong> ${d.label}<br/>
-             <strong>Tipo:</strong> ${d.data.file_type || 'N/A'}<br/>
-             <strong>Categoria:</strong> ${d.data.category || 'N/A'}<br/>
-             <strong>Status:</strong> ${d.data.processing_status || 'N/A'}`
-        
-        tooltip.html(content)
-          .style("left", (event.pageX + 10) + "px")
-          .style("top", (event.pageY - 10) + "px")
-      })
-      .on("mouseout", function() {
-        tooltip.transition()
-          .duration(500)
-          .style("opacity", 0)
-      })
-
-    // Função para ajustar zoom automático
-    const autoFitView = () => {
-      if (nodes.length === 0) return
+      console.log(`✅ NetworkGraph initializing with valid dimensions`)
       
-      // Calcular bounds dos nós após simulação
-      setTimeout(() => {
-        const nodePositions = nodes.map((d: any) => ({
-          x: d.x || width/2,
-          y: d.y || height/2
-        }))
-        
-        const padding = 50
-        const minX = Math.min(...nodePositions.map(d => d.x)) - padding
-        const maxX = Math.max(...nodePositions.map(d => d.x)) + padding
-        const minY = Math.min(...nodePositions.map(d => d.y)) - padding  
-        const maxY = Math.max(...nodePositions.map(d => d.y)) + padding
-        
-        const boundsWidth = maxX - minX
-        const boundsHeight = maxY - minY
-        
-        // Calcular scale para fit na tela
-        const scaleX = width / boundsWidth
-        const scaleY = height / boundsHeight
-        const scale = Math.min(scaleX, scaleY, 2) // máximo 2x zoom
-        
-        // Calcular translate para centralizar
-        const centerX = (minX + maxX) / 2
-        const centerY = (minY + maxY) / 2
-        const translateX = width / 2 - centerX * scale
-        const translateY = height / 2 - centerY * scale
-        
-        console.log(`🎯 Auto-fit: scale=${scale.toFixed(2)}, translate=(${translateX.toFixed(0)}, ${translateY.toFixed(0)})`)
-        
-        // Aplicar transform suavemente
-        svg.transition()
-          .duration(1500)
-          .call(zoom.transform as any, d3.zoomIdentity.translate(translateX, translateY).scale(scale))
-      }, 2000) // Aguardar simulação se estabilizar
-    }
+      try {
 
-    // Atualizar posições na simulação
-    simulation.on("tick", () => {
-      link
-        .attr("x1", (d: any) => d.source.x)
-        .attr("y1", (d: any) => d.source.y)
-        .attr("x2", (d: any) => d.target.x)
-        .attr("y2", (d: any) => d.target.y)
+      const svg = d3.select(svgElement)
+      svg.selectAll("*").remove() // Limpar conteúdo anterior
+
+      // Calcular parâmetros dinâmicos baseado na quantidade de nós
+      const orderNodes = nodes.filter(n => n.type === 'order')
+      const docNodes = nodes.filter(n => n.type === 'document')
+      
+      // Ajustar força de repulsão baseado na densidade
+      const nodeCount = nodes.length
+      const density = nodeCount / (width * actualHeight / 10000) // densidade por 100x100px
+      const repulsionStrength = Math.max(-800, Math.min(-100, -300 * Math.sqrt(density)))
+      
+      // Distância entre links baseada no número de conexões
+      const linkDistance = Math.max(80, Math.min(200, 150 - nodeCount * 0.5))
+      
+      console.log(`📊 Auto-layout: ${nodeCount} nós, densidade: ${density.toFixed(2)}, repulsão: ${repulsionStrength}, distância: ${linkDistance}`)
+
+      // Posicionamento inicial inteligente dos nós
+      const ordersCount = orderNodes.length
+      if (ordersCount > 0) {
+        // Distribuir orders em círculo ou grid
+        if (ordersCount <= 8) {
+          // Círculo para poucas orders
+          const radius = Math.min(width, actualHeight) * 0.3
+          orderNodes.forEach((node: any, i: number) => {
+            const angle = (2 * Math.PI * i) / ordersCount
+            node.x = width / 2 + radius * Math.cos(angle)
+            node.y = actualHeight / 2 + radius * Math.sin(angle)
+            node.fx = node.x // Fixar posição inicial
+            node.fy = node.y
+          })
+        } else {
+          // Grid para muitas orders
+          const cols = Math.ceil(Math.sqrt(ordersCount))
+          const rows = Math.ceil(ordersCount / cols)
+          const cellWidth = width * 0.8 / cols
+          const cellHeight = actualHeight * 0.8 / rows
+          const startX = width * 0.1
+          const startY = actualHeight * 0.1
+          
+          orderNodes.forEach((node: any, i: number) => {
+            const row = Math.floor(i / cols)
+            const col = i % cols
+            node.x = startX + col * cellWidth + cellWidth / 2
+            node.y = startY + row * cellHeight + cellHeight / 2
+            node.fx = node.x
+            node.fy = node.y
+          })
+        }
+        
+        // Liberar posições fixas após um tempo para permitir ajustes
+        setTimeout(() => {
+          orderNodes.forEach((node: any) => {
+            node.fx = null
+            node.fy = null
+          })
+        }, 1000)
+      }
+
+      // Configurar simulação de força com parâmetros dinâmicos
+      const simulation = d3.forceSimulation(nodes as any)
+        .force("link", d3.forceLink(edges).id((d: any) => d.id).distance(linkDistance))
+        .force("charge", d3.forceManyBody().strength(repulsionStrength))
+        .force("center", d3.forceCenter(width / 2, actualHeight / 2))
+        .force("collision", d3.forceCollide().radius((d: any) => d.type === 'order' ? 35 : 25))
+        .force("x", d3.forceX(width / 2).strength(0.05))
+        .force("y", d3.forceY(actualHeight / 2).strength(0.05))
+
+      // Criar container principal
+      const container = svg.append("g")
+
+      // Zoom behavior com verificação de extensão válida
+      const zoom = d3.zoom()
+        .scaleExtent([0.1, 5])
+        .on("zoom", (event) => {
+          container.attr("transform", event.transform)
+        })
+
+      // Aplicar zoom apenas quando o SVG tem dimensões
+      if (width > 0 && actualHeight > 0) {
+        svg.call(zoom as any)
+      }
+      
+      // Click no SVG para fechar menu contextual
+      svg.on("click", () => {
+        closeContextMenu()
+      })
+
+      // Criar links (arestas)
+      const link = container.selectAll(".link")
+        .data(edges)
+        .enter()
+        .append("line")
+        .attr("class", "link")
+        .attr("stroke", "#999")
+        .attr("stroke-width", 2)
+        .attr("stroke-opacity", 0.6)
+
+      // Criar nodes (nós)
+      const node = container.selectAll(".node")
+        .data(nodes)
+        .enter()
+        .append("g")
+        .attr("class", "node")
+        .call(d3.drag()
+          .on("start", (event, d: any) => {
+            if (!event.active) simulation.alphaTarget(0.3).restart()
+            d.fx = d.x
+            d.fy = d.y
+          })
+          .on("drag", (event, d: any) => {
+            d.fx = event.x
+            d.fy = event.y
+          })
+          .on("end", (event, d: any) => {
+            if (!event.active) simulation.alphaTarget(0)
+            d.fx = null
+            d.fy = null
+          }) as any)
+
+      // Círculos dos nodes
+      node.append("circle")
+        .attr("r", (d: any) => d.type === 'order' ? 20 : 15)
+        .attr("fill", (d: any) => {
+          if (d.highlighted) {
+            return d.type === 'order' ? "#f59e0b" : "#ef4444" // Cores de destaque (amarelo e vermelho)
+          }
+          return d.type === 'order' ? "#3b82f6" : "#10b981" // Cores padrão
+        })
+        .attr("stroke", (d: any) => d.highlighted ? "#fbbf24" : "#fff")
+        .attr("stroke-width", (d: any) => d.highlighted ? 4 : 2)
+
+      // Ícones nos nodes
+      node.append("text")
+        .attr("text-anchor", "middle")
+        .attr("dominant-baseline", "central")
+        .attr("fill", "white")
+        .attr("font-size", (d: any) => d.type === 'order' ? "16px" : "12px")
+        .attr("font-weight", "bold")
+        .text((d: any) => d.type === 'order' ? "📋" : "📄")
+
+      // Adicionar evento de clique nos nós
+      node.on("click", (event: MouseEvent, d: any) => {
+        event.preventDefault()
+        event.stopPropagation()
+        handleNodeClick(event, d)
+      })
+
+      // Adicionar visual de hover
+      node.style("cursor", "pointer")
+        .on("mouseenter", function() {
+          d3.select(this).select("circle")
+            .transition()
+            .duration(200)
+            .attr("r", (d: any) => (d.type === 'order' ? 20 : 15) * 1.1)
+            .attr("stroke-width", 3)
+        })
+        .on("mouseleave", function() {
+          d3.select(this).select("circle")
+            .transition()
+            .duration(200)
+            .attr("r", (d: any) => d.type === 'order' ? 20 : 15)
+            .attr("stroke-width", 2)
+        })
+
+      // Labels dos nodes
+      node.append("text")
+        .attr("text-anchor", "middle")
+        .attr("dy", (d: any) => d.type === 'order' ? 35 : 30)
+        .attr("font-size", "12px")
+        .attr("fill", "#374151")
+        .text((d: any) => {
+          const maxLength = 20
+          return d.label.length > maxLength 
+            ? d.label.substring(0, maxLength) + "..." 
+            : d.label
+        })
+
+      // Tooltip
+      const tooltip = d3.select("body").append("div")
+        .attr("class", "tooltip")
+        .style("opacity", 0)
+        .style("position", "absolute")
+        .style("background", "rgba(0, 0, 0, 0.8)")
+        .style("color", "white")
+        .style("padding", "8px")
+        .style("border-radius", "4px")
+        .style("font-size", "12px")
+        .style("pointer-events", "none")
+        .style("z-index", "1000")
 
       node
-        .attr("transform", (d: any) => `translate(${d.x},${d.y})`)
-    })
-    
-    // Executar auto-fit quando simulação terminar
-    simulation.on("end", autoFitView)
+        .on("mouseover", function(event, d: any) {
+          tooltip.transition()
+            .duration(200)
+            .style("opacity", .9)
+          
+          const content = d.type === 'order' 
+            ? `<strong>Order:</strong> ${d.label}<br/>
+               <strong>Cliente:</strong> ${d.data.customer || 'N/A'}<br/>
+               <strong>Status:</strong> ${d.data.status || 'N/A'}<br/>
+               <strong>Documentos:</strong> ${d.data.total_documents || 0}`
+            : `<strong>Documento:</strong> ${d.label}<br/>
+               <strong>Tipo:</strong> ${d.data.file_type || 'N/A'}<br/>
+               <strong>Categoria:</strong> ${d.data.category || 'N/A'}<br/>
+               <strong>Status:</strong> ${d.data.processing_status || 'N/A'}`
+          
+          tooltip.html(content)
+            .style("left", (event.pageX + 10) + "px")
+            .style("top", (event.pageY - 10) + "px")
+        })
+        .on("mouseout", function() {
+          tooltip.transition()
+            .duration(500)
+            .style("opacity", 0)
+        })
 
-    // Cleanup
-    return () => {
-      tooltip.remove()
-      simulation.stop()
+      // Atualizar posições na simulação
+      simulation.on("tick", () => {
+        link
+          .attr("x1", (d: any) => d.source.x)
+          .attr("y1", (d: any) => d.source.y)
+          .attr("x2", (d: any) => d.target.x)
+          .attr("y2", (d: any) => d.target.y)
+
+        node
+          .attr("transform", (d: any) => `translate(${d.x},${d.y})`)
+      })
+
+        // Cleanup
+        return () => {
+          tooltip.remove()
+          simulation.stop()
+        }
+        
+      } catch (error) {
+        console.error('❌ Erro ao inicializar NetworkGraph:', error)
+        // Em caso de erro, tentar novamente após um delay maior
+        setTimeout(initializeGraph, 500)
+      }
     }
+
+    // Inicializar com pequeno delay para garantir renderização
+    setTimeout(initializeGraph, 50)
 
   }, [nodes, edges, height])
 
@@ -722,47 +711,6 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
     }
   }
 
-  const handleAutoFit = () => {
-    if (!svgRef.current || nodes.length === 0) return
-    
-    const svg = d3.select(svgRef.current)
-    const width = svgRef.current.clientWidth
-    const height = svgRef.current.getBoundingClientRect().height
-    
-    // Calcular bounds dos nós atuais
-    const nodePositions = nodes.map((d: any) => ({
-      x: d.x || width/2,
-      y: d.y || height/2
-    }))
-    
-    const padding = 50
-    const minX = Math.min(...nodePositions.map(d => d.x)) - padding
-    const maxX = Math.max(...nodePositions.map(d => d.x)) + padding
-    const minY = Math.min(...nodePositions.map(d => d.y)) - padding  
-    const maxY = Math.max(...nodePositions.map(d => d.y)) + padding
-    
-    const boundsWidth = maxX - minX
-    const boundsHeight = maxY - minY
-    
-    // Calcular scale para fit na tela
-    const scaleX = width / boundsWidth
-    const scaleY = height / boundsHeight
-    const scale = Math.min(scaleX, scaleY, 3) // máximo 3x zoom
-    
-    // Calcular translate para centralizar
-    const centerX = (minX + maxX) / 2
-    const centerY = (minY + maxY) / 2
-    const translateX = width / 2 - centerX * scale
-    const translateY = height / 2 - centerY * scale
-    
-    console.log(`🎯 Manual Auto-fit: scale=${scale.toFixed(2)}`)
-    
-    // Aplicar transform suavemente
-    svg.transition()
-      .duration(1000)
-      .call(d3.zoom().transform as any, d3.zoomIdentity.translate(translateX, translateY).scale(scale))
-  }
-
   return (
     <div className="relative w-full h-full">
       {/* Zoom Controls */}
@@ -782,13 +730,6 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
           −
         </button>
         <button
-          onClick={handleAutoFit}
-          className="w-8 h-8 bg-blue-500 text-white shadow-md rounded border hover:bg-blue-600 flex items-center justify-center text-xs font-bold"
-          title="Auto Fit - Mostrar todos os nós"
-        >
-          ⚡
-        </button>
-        <button
           onClick={handleReset}
           className="w-8 h-8 bg-white shadow-md rounded border hover:bg-gray-50 flex items-center justify-center text-xs"
           title="Reset Zoom"
@@ -799,7 +740,7 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
       
       {/* Help Text */}
       <div className="absolute bottom-4 left-4 text-xs text-gray-500 bg-white bg-opacity-90 px-2 py-1 rounded max-w-md">
-        <strong>⚡ Auto Fit:</strong> Ajusta zoom automaticamente • <strong>Arraste:</strong> mover visualização • <strong>Roda do mouse:</strong> zoom • <strong>Clique nos nós:</strong> ações • <strong>Arraste nós:</strong> reposicionar
+        <strong>Arraste:</strong> mover visualização • <strong>Roda do mouse:</strong> zoom • <strong>Clique nos nós:</strong> ações • <strong>Arraste nós:</strong> reposicionar
       </div>
 
       {/* Context Menu */}
@@ -895,6 +836,7 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
         width="100%"
         height={height}
         className="border-none"
+        style={{ minHeight: '400px' }}
       />
     </div>
   )
