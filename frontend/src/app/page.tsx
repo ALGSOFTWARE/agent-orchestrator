@@ -139,11 +139,20 @@ export default function HomePage() {
             </div>
 
             <div className={styles.feature}>
+              <div className={styles.featureIcon}>🗺️</div>
+              <h3>Visualizações Inteligentes</h3>
+              <p>Grafos, mapas semânticos e busca visual com D3.js</p>
+              <Link href="/visualizations" className={styles.featureLink}>
+                Visualizar →
+              </Link>
+            </div>
+
+            <div className={styles.feature}>
               <div className={styles.featureIcon}>🔍</div>
-              <h3>Busca Semântica</h3>
-              <p>Encontre documentos usando linguagem natural e IA</p>
+              <h3>Busca Clássica</h3>
+              <p>Busca tradicional de documentos com filtros</p>
               <Link href="/search" className={styles.featureLink}>
-                Buscar com IA →
+                Buscar →
               </Link>
             </div>
 

@@ -751,7 +751,7 @@ export default function ApiExplorerPage() {
         </div>
         </div>
       ) : (
-        <CrudManager className={styles.crudSection} />
+        <CrudManager className={styles.crudSection || ''} />
       )}
     </div>
   )

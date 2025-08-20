@@ -43,8 +43,11 @@ check_port() {
 # Função para matar processo em uma porta
 kill_port() {
     if check_port $1; then
-        echo -e "${YELLOW}Matando processo na porta $1...${NC}"
-        lsof -ti:$1 | xargs kill -9 2>/dev/null || true
+        echo -e "${YELLOW}Porta $1 está em uso. Tentando liberar com sudo...${NC}"
+        # Pede sudo apenas uma vez no início, se necessário
+        sudo -v
+        # Usa o sudo para garantir que o processo seja finalizado
+        sudo lsof -ti:$1 | xargs --no-run-if-empty sudo kill -9
         sleep 2
     fi
 }
@@ -199,29 +202,29 @@ start_frontend() {
     cd frontend
     
     # Verificar se já está rodando
-    if check_port 3000; then
-        echo -e "${YELLOW}⚠️  Frontend já rodando na porta 3000${NC}"
+    if check_port 3002; then
+        echo -e "${YELLOW}⚠️  Frontend já rodando na porta 3002${NC}"
         cd ..
         return
     fi
     
-    # Verificar se dependências já estão instaladas
-    if [ ! -d "node_modules" ] || [ ! -f "node_modules/.package-lock.json" ]; then
-        echo -e "${YELLOW}📦 Instalando dependências Node.js...${NC}"
-        timeout 120 npm install --silent || {
+    # Verificar se dependências já estão instaladas com yarn
+    if [ ! -d "node_modules" ] || [ ! -f "yarn.lock" ]; then
+        echo -e "${YELLOW}📦 Instalando dependências Node.js com Yarn...${NC}"
+        timeout 120 yarn install --silent || {
             echo -e "${YELLOW}⚠️ Timeout na instalação Node.js - usando cache existente${NC}"
         }
     else
         echo -e "${GREEN}✅ Dependências Node.js já instaladas${NC}"
     fi
     
-    echo -e "${GREEN}🚀 Frontend iniciando na porta 3000...${NC}"
+    echo -e "${GREEN}🚀 Frontend iniciando na porta 3002...${NC}"
     
     # Iniciar com log para debugging se necessário
     if [ "$DEBUG" = "true" ]; then
-        npm run dev &
+        npm run dev -- -p 3002 &
     else
-        npm run dev > /tmp/frontend.log 2>&1 &
+        npm run dev -- -p 3002 > /tmp/frontend.log 2>&1 &
     fi
     FRONTEND_PID=$!
     
@@ -243,17 +246,17 @@ echo -e "${BLUE}🔍 Verificando status dos serviços...${NC}"
 
 services_ok=true
 
-# Frontend (verificar portas 3000, 3001 ou 3002)
+# Frontend (verificar portas 3002, 3000 ou 3001)
 frontend_port=""
-if check_port 3000; then
+if check_port 3002; then
+    frontend_port="3002"
+    echo -e "${GREEN}✅ Frontend (3002): OK${NC}"
+elif check_port 3000; then
     frontend_port="3000"
     echo -e "${GREEN}✅ Frontend (3000): OK${NC}"
 elif check_port 3001; then
     frontend_port="3001"
     echo -e "${GREEN}✅ Frontend (3001): OK${NC}"
-elif check_port 3002; then
-    frontend_port="3002"
-    echo -e "${GREEN}✅ Frontend (3002): OK${NC}"
 else
     echo -e "${RED}❌ Frontend (3000/3001/3002): FALHOU${NC}"
     services_ok=false

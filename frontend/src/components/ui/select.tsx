@@ -1,14 +1,28 @@
+'use client'
+
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
-interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {}
+interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+  value?: string
+  onValueChange?: (value: string) => void
+}
 
 interface SelectItemProps extends React.OptionHTMLAttributes<HTMLOptionElement> {
   children: React.ReactNode
 }
 
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, children, ...props }, ref) => {
+  ({ className, children, value, onValueChange, onChange, ...props }, ref) => {
+    const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      if (onValueChange) {
+        onValueChange(e.target.value)
+      }
+      if (onChange) {
+        onChange(e)
+      }
+    }
+
     return (
       <select
         className={cn(
@@ -16,6 +30,8 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           className
         )}
         ref={ref}
+        value={value}
+        onChange={handleChange}
         {...props}
       >
         {children}
@@ -25,21 +41,12 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
 )
 Select.displayName = "Select"
 
-const SelectTrigger = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, children, ...props }, ref) => (
-    <Select
-      className={cn("", className)}
-      ref={ref}
-      {...props}
-    >
-      {children}
-    </Select>
-  )
-)
+// SelectTrigger is now just the Select itself
+const SelectTrigger = Select
 SelectTrigger.displayName = "SelectTrigger"
 
 const SelectValue = ({ placeholder, ...props }: { placeholder?: string } & React.HTMLAttributes<HTMLDivElement>) => (
-  <option value="" disabled hidden>
+  <option value="" disabled>
     {placeholder}
   </option>
 )
