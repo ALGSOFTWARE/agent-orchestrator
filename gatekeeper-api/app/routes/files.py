@@ -512,3 +512,145 @@ async def clear_vector_search_cache():
             status_code=500,
             detail=f"Erro ao limpar cache: {str(e)}"
         )
+
+
+# === DOCUMENT ACCESS ENDPOINTS === #
+
+@router.get("/{file_id}/metadata")
+async def get_document_metadata(file_id: str):
+    """Retorna metadados completos de um documento específico"""
+    try:
+        # Buscar documento por file_id
+        document = await DocumentFile.find_one(DocumentFile.file_id == file_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Documento não encontrado")
+        
+        # Buscar Order relacionada
+        order = None
+        if document.order_id:
+            order = await Order.find_one(Order.order_id == document.order_id)
+        
+        # Preparar metadados completos
+        metadata = {
+            "document": {
+                "id": str(document.id),
+                "file_id": document.file_id if hasattr(document, 'file_id') else str(document.id),
+                "original_name": document.original_name,
+                "s3_key": document.s3_key,
+                "s3_url": document.s3_url,
+                "file_type": document.file_type,
+                "file_extension": document.file_extension,
+                "size_bytes": document.size_bytes,
+                "category": document.category.value if document.category else None,
+                "processing_status": document.processing_status.value if document.processing_status else None,
+                "uploaded_at": document.uploaded_at.isoformat() if document.uploaded_at else None,
+                "indexed_at": document.indexed_at.isoformat() if document.indexed_at else None,
+                "tags": document.tags or [],
+                "has_embedding": bool(document.embedding),
+                "embedding_model": document.embedding_model,
+                "text_content_length": len(document.text_content) if document.text_content else 0,
+                "order_id": document.order_id
+            },
+            "order": {
+                "id": str(order.id) if order else None,
+                "order_id": order.order_id if order else None,
+                "title": order.title if order else None,
+                "customer_name": order.customer_name if order else None,
+                "status": order.status.value if order and order.status else None,
+                "created_at": order.created_at.isoformat() if order and order.created_at else None
+            } if order else None,
+            "access": {
+                "can_download": bool(document.s3_key),
+                "signed_url_available": bool(document.s3_key),
+                "text_preview_available": bool(document.text_content)
+            }
+        }
+        
+        return metadata
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro interno ao buscar metadados: {str(e)}"
+        )
+
+
+@router.get("/{file_id}/download")
+async def download_document(file_id: str):
+    """Gera URL assinada para download direto de um documento"""
+    try:
+        # Buscar documento por file_id
+        document = await DocumentFile.find_one(DocumentFile.file_id == file_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Documento não encontrado")
+        
+        if not document.s3_key:
+            # Para documentos sintéticos sem S3, retornar mock URL
+            return {
+                "download_url": f"https://demo-bucket.s3.amazonaws.com/demo/{document.original_name}",
+                "filename": document.original_name,
+                "size_bytes": document.size_bytes,
+                "file_type": document.file_type,
+                "expires_in": 3600,
+                "expires_at": (datetime.now() + timedelta(hours=1)).isoformat(),
+                "note": "Mock URL - Document has no S3 key (synthetic data)"
+            }
+        
+        # Verificar se as credenciais AWS estão configuradas
+        if not all([S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION]):
+            # Para demonstração, retornar URL mock quando S3 não configurado
+            return {
+                "download_url": f"https://demo-bucket.s3.amazonaws.com/{document.s3_key}",
+                "filename": document.original_name,
+                "size_bytes": document.size_bytes,
+                "file_type": document.file_type,
+                "expires_in": 3600,
+                "expires_at": (datetime.now() + timedelta(hours=1)).isoformat(),
+                "note": "Mock URL - S3 credentials not configured for demo"
+            }
+        
+        try:
+            # Verificar se o arquivo existe no S3
+            s3_client.head_object(Bucket=S3_BUCKET, Key=document.s3_key)
+            
+            # Gerar URL assinada para download
+            signed_url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={
+                    'Bucket': S3_BUCKET, 
+                    'Key': document.s3_key,
+                    'ResponseContentDisposition': f'attachment; filename="{document.original_name}"'
+                },
+                ExpiresIn=3600  # 1 hora
+            )
+            
+            return {
+                "download_url": signed_url,
+                "filename": document.original_name,
+                "size_bytes": document.size_bytes,
+                "file_type": document.file_type,
+                "expires_in": 3600,
+                "expires_at": (datetime.now() + timedelta(hours=1)).isoformat()
+            }
+            
+        except ClientError as e:
+            if e.response['Error']['Code'] == '404':
+                raise HTTPException(
+                    status_code=404,
+                    detail="Arquivo não encontrado no S3"
+                )
+            else:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Erro ao acessar S3: {str(e)}"
+                )
+                
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro interno ao gerar download: {str(e)}"
+        )

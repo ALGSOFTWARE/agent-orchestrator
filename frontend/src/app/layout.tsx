@@ -2,7 +2,7 @@
 
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
-import { ToastContainer } from '@/components/ui'
+import { Toaster } from '@/components/ui/toaster'
 import { GlobalHeader } from '@/components/layout/GlobalHeader'
 import '@/styles/globals.css'
 
@@ -30,8 +30,7 @@ export default function RootLayout({
           {children}
         </div>
         <div id="modal-root" />
-        <div id="toast-root" />
-        <ToastContainer />
+        <Toaster />
       </body>
     </html>
   )

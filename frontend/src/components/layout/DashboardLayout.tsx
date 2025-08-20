@@ -23,7 +23,8 @@ const navigationItems: NavItem[] = [
   { href: '/agents', label: 'Agentes de IA', icon: '🤖' },
   { href: '/chat', label: 'Sandbox de Agentes', icon: '💬', badge: 'Público' },
   { href: '/orders', label: 'Orders', icon: '📋', badge: 'Super-contêiner' },
-  { href: '/search', label: 'Busca Semântica', icon: '🔍', badge: 'AI-Powered' },
+  { href: '/visualizations', label: 'Visualizações Inteligentes', icon: '🗺️', badge: 'Graph+Map+Search' },
+  { href: '/search', label: 'Busca de Documentos', icon: '🔍', badge: 'Clássica' },
   { href: '/monitoring', label: 'Monitoramento', icon: '📊', badge: 'Live' },
   { href: '/api-explorer', label: 'API Explorer', icon: '🛠️' },
   { href: '/documents', label: 'Documentos', icon: '📁' },
@@ -56,12 +57,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     }
   }, [])
 
-  // Redirect if not authenticated
+  // Redirect if not authenticated - only for sensitive routes
   useEffect(() => {
-    if (!currentUser) {
+    const sensitiveRoutes = ['/settings/admin', '/api-explorer/admin']
+    const isSensitiveRoute = sensitiveRoutes.some(route => pathname.startsWith(route))
+    
+    if (!currentUser && isSensitiveRoute) {
       router.push('/')
     }
-  }, [currentUser, router])
+  }, [currentUser, router, pathname])
 
 
   return (
@@ -154,13 +158,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
             <div className={styles.quickActionsList}>
               <Link
-                href="/search"
+                href="/visualizations"
                 className={styles.quickAction}
-                title="Busca semântica de documentos"
+                title="Visualizações inteligentes com busca semântica"
               >
                 <span className={styles.quickActionIcon}>🔍</span>
                 {!sidebarCollapsed && (
-                  <span className={styles.quickActionLabel}>Busca AI</span>
+                  <span className={styles.quickActionLabel}>Busca Visual</span>
                 )}
               </Link>
               <Link
