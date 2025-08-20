@@ -57,11 +57,12 @@ export function DialogContent({ children, className }: DialogContentProps) {
 
 interface DialogHeaderProps {
   children: React.ReactNode
+  className?: string // Added className
 }
 
-export function DialogHeader({ children }: DialogHeaderProps) {
+export function DialogHeader({ children, className }: DialogHeaderProps) {
   return (
-    <div className="mb-6">
+    <div className={`mb-6 ${className || ''}`}> // Added className
       {children}
     </div>
   )
@@ -69,11 +70,12 @@ export function DialogHeader({ children }: DialogHeaderProps) {
 
 interface DialogTitleProps {
   children: React.ReactNode
+  className?: string // Added className
 }
 
-export function DialogTitle({ children }: DialogTitleProps) {
+export function DialogTitle({ children, className }: DialogTitleProps) {
   return (
-    <h2 className="text-lg font-semibold text-gray-900 mb-2">
+    <h2 className={`text-lg font-semibold text-gray-900 mb-2 ${className || ''}`}> // Added className
       {children}
     </h2>
   )
@@ -81,11 +83,12 @@ export function DialogTitle({ children }: DialogTitleProps) {
 
 interface DialogDescriptionProps {
   children: React.ReactNode
+  className?: string // Added className
 }
 
-export function DialogDescription({ children }: DialogDescriptionProps) {
+export function DialogDescription({ children, className }: DialogDescriptionProps) {
   return (
-    <p className="text-sm text-gray-600">
+    <p className={`text-sm text-gray-600 ${className || ''}`}> // Added className
       {children}
     </p>
   )
@@ -93,11 +96,12 @@ export function DialogDescription({ children }: DialogDescriptionProps) {
 
 interface DialogFooterProps {
   children: React.ReactNode
+  className?: string // Added className
 }
 
-export function DialogFooter({ children }: DialogFooterProps) {
+export function DialogFooter({ children, className }: DialogFooterProps) {
   return (
-    <div className="flex justify-end space-x-2 pt-4 border-t">
+    <div className={`flex justify-end space-x-2 pt-4 border-t ${className || ''}`}> // Added className
       {children}
     </div>
   )

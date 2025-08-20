@@ -52,9 +52,10 @@ interface DropdownMenuContentProps {
   children: React.ReactNode
   align?: 'start' | 'center' | 'end'
   onClose?: () => void
+  className?: string // Added className
 }
 
-export function DropdownMenuContent({ children, align = 'start', onClose }: DropdownMenuContentProps) {
+export function DropdownMenuContent({ children, align = 'start', onClose, className }: DropdownMenuContentProps) {
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (onClose) {
@@ -73,7 +74,7 @@ export function DropdownMenuContent({ children, align = 'start', onClose }: Drop
   }[align]
 
   return (
-    <div className={`absolute top-full mt-1 ${alignClass} w-48 bg-white border border-gray-200 rounded-md shadow-lg z-50`}>
+    <div className={`absolute top-full mt-1 ${alignClass} w-48 bg-white border border-gray-200 rounded-md shadow-lg z-50 ${className || ''}`}> // Added className
       <div className="py-1">
         {children}
       </div>
@@ -84,12 +85,13 @@ export function DropdownMenuContent({ children, align = 'start', onClose }: Drop
 interface DropdownMenuItemProps {
   children: React.ReactNode
   onClick?: () => void
+  className?: string // Added className
 }
 
-export function DropdownMenuItem({ children, onClick }: DropdownMenuItemProps) {
+export function DropdownMenuItem({ children, onClick, className }: DropdownMenuItemProps) {
   return (
     <button
-      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+      className={`w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 ${className || ''}`} // Added className
       onClick={onClick}
     >
       {children}

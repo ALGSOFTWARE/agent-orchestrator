@@ -23,7 +23,7 @@ export function AgentTester({ agentType, currentUser }: AgentTesterProps) {
   const [sessionId] = useState(`session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`)
   const [metrics, setMetrics] = useState<AgentTestResult | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const toast = useToast()
+  const { toast } = useToast()
 
   useEffect(() => {
     // Initialize conversation with welcome message

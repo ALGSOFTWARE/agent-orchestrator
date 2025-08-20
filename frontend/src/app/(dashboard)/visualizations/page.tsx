@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Badge, Tabs, TabsContent, TabsList, TabsTrigger, Separator } from '@/components/ui'
-import { Search, Network, Map, Loader2, Eye, GitBranch } from 'lucide-react'
+import { Search, Network, Map, Loader2, Eye, GitBranch, Maximize2 } from 'lucide-react'
 import NetworkGraph from '@/components/visualizations/NetworkGraph'
 import SemanticMap from '@/components/visualizations/SemanticMap'
+import { GraphModal } from '@/components/visualizations/GraphModal'
 import { gatekeeperClient } from '@/lib/api/client'
 import { useToast } from "@/hooks/use-toast"
 import styles from './visualizations.module.css'
@@ -14,6 +15,7 @@ interface GraphNode {
   type: 'order' | 'document'
   label: string
   data: any
+  highlighted?: boolean
 }
 
 interface GraphEdge {
@@ -72,6 +74,7 @@ export default function VisualizationsPage() {
   const [selectedOrderId, setSelectedOrderId] = useState<string>('')
   const [loadingGraph, setLoadingGraph] = useState(false)
   const [orders, setOrders] = useState<any[]>([])
+  const [isGraphModalOpen, setIsGraphModalOpen] = useState(false)
 
   // States para Semantic Map  
   const [semanticData, setSemanticData] = useState<SemanticMapData | null>(null)
@@ -105,7 +108,7 @@ export default function VisualizationsPage() {
       console.error('❌ [GRAPH] Erro ao carregar dados do grafo:', error)
       toast({
         title: "Erro no Grafo",
-        description: `Não foi possível carregar os dados do grafo: ${error?.message || error}`,
+        description: `Não foi possível carregar os dados do grafo: ${error instanceof Error ? error.message : error}`,
         variant: "destructive",
       })
     } finally {
@@ -137,7 +140,7 @@ export default function VisualizationsPage() {
       console.error('❌ [SEMANTIC] Erro ao carregar mapa semântico:', error)
       toast({
         title: "Erro no Mapa Semântico",
-        description: `Não foi possível carregar os dados do mapa: ${error?.message || error}`,
+        description: `Não foi possível carregar os dados do mapa: ${error instanceof Error ? error.message : error}`,
         variant: "destructive",
       })
     } finally {
@@ -191,7 +194,7 @@ export default function VisualizationsPage() {
       console.error('❌ [ORDERS] Erro ao carregar orders:', error);
       toast({
         title: "Erro de Conexão",
-        description: `Não foi possível carregar a lista de pedidos: ${error?.message || error}`,
+        description: `Não foi possível carregar a lista de pedidos: ${error instanceof Error ? error.message : error}`,
         variant: "destructive",
       })
     }
@@ -259,6 +262,20 @@ export default function VisualizationsPage() {
                       <Eye className="h-4 w-4" />
                     )}
                     Atualizar
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      console.log('🔍 Botão Expandir clicado!')
+                      console.log('📊 GraphData existe:', !!graphData)
+                      console.log('📊 Loading:', loadingGraph)
+                      setIsGraphModalOpen(true)
+                    }} 
+                    disabled={!graphData || loadingGraph}
+                    variant="outline" 
+                    className="flex items-center gap-2"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                    Expandir
                   </Button>
                 </div>
               </CardTitle>
@@ -458,6 +475,32 @@ export default function VisualizationsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+      
+      {/* Graph Modal */}
+      {graphData && (
+        <GraphModal
+          isOpen={isGraphModalOpen}
+          onClose={() => {
+            console.log('🔍 Fechando modal do grafo')
+            setIsGraphModalOpen(false)
+          }}
+          nodes={graphData.nodes}
+          edges={graphData.edges}
+          title={selectedOrderId 
+            ? `Grafo de Relacionamentos - Order: ${orders.find(o => o.order_id === selectedOrderId)?.title || 'Selecionada'}` 
+            : 'Grafo de Relacionamentos - Todas as Orders'
+          }
+        />
+      )}
+      
+      {/* Debug Info */}
+      {process.env.NODE_ENV === 'development' && (
+        <div style={{ position: 'fixed', bottom: '10px', right: '10px', background: 'black', color: 'white', padding: '5px', fontSize: '10px', zIndex: 10000 }}>
+          Modal Open: {isGraphModalOpen ? 'SIM' : 'NÃO'} | 
+          GraphData: {graphData ? 'SIM' : 'NÃO'} | 
+          Nodes: {graphData?.nodes?.length || 0}
+        </div>
+      )}
     </div>
   )
 }

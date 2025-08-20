@@ -216,6 +216,16 @@ class ApiClient {
     return response.data
   }
 
+  async putRaw<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.put<T>(url, data, config)
+    return response.data
+  }
+
+  async deleteRaw<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.delete<T>(url, config)
+    return response.data
+  }
+
   // === UTILITY METHODS === //
   setAuthToken(token: string): void {
     if (typeof window !== 'undefined') {
@@ -323,7 +333,7 @@ export async function uploadFile(
   file: File,
   endpoint: string = '/upload',
   onProgress?: (progress: number) => void
-): Promise<{ url: string; id: string }> {
+): Promise<{ url: string; id: string; order_id: string; order_title: string }> {
   const formData = new FormData()
   formData.append('file', file)
 
@@ -339,7 +349,7 @@ export async function uploadFile(
     },
   }
 
-  const response = await gatekeeperClient.postRaw<{ url: string; id: string }>(
+  const response = await gatekeeperClient.postRaw<{ url: string; id: string; order_id: string; order_title: string }>(
     endpoint,
     formData,
     config
