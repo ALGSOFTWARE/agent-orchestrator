@@ -5,10 +5,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:safe": "./scripts/dev-safe.sh",
+    "dev:clean": "rm -rf .next node_modules/.cache tsconfig.tsbuildinfo && npm run dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "restart": "pkill -f 'next dev' || true && npm run dev:clean"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.1.2",
@@ -45,8 +48,8 @@
     "@types/node": "^20.8.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
-    "@typescript-eslint/eslint-plugin": "^8.39.1",
-    "@typescript-eslint/parser": "^8.39.1",
+    "@typescript-eslint/eslint-plugin": "^8.40.0",
+    "@typescript-eslint/parser": "^8.40.0",
     "eslint": "^8.52.0",
     "eslint-config-next": "^14.0.0",
     "typescript": "^5.2.0"

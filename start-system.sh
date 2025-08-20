@@ -33,7 +33,7 @@ NC='\033[0m' # No Color
 
 # Função para verificar se uma porta está ocupada
 check_port() {
-    if lsof -Pi :$1 -sTCP:LISTEN -t >/dev/null ; then
+    if netstat -tulpn 2>/dev/null | grep -q ":$1 " ; then
         return 0
     else
         return 1
@@ -43,12 +43,17 @@ check_port() {
 # Função para matar processo em uma porta
 kill_port() {
     if check_port $1; then
-        echo -e "${YELLOW}Porta $1 está em uso. Tentando liberar com sudo...${NC}"
-        # Pede sudo apenas uma vez no início, se necessário
-        sudo -v
-        # Usa o sudo para garantir que o processo seja finalizado
-        sudo lsof -ti:$1 | xargs --no-run-if-empty sudo kill -9
-        sleep 2
+        echo -e "${YELLOW}Porta $1 está em uso. Tentando liberar...${NC}"
+        # Tenta sem sudo primeiro
+        lsof -ti:$1 | xargs --no-run-if-empty kill -9 2>/dev/null || {
+            echo -e "${RED}❌ Não foi possível liberar a porta $1${NC}"
+            echo -e "${BLUE}💡 Para liberar manualmente: lsof -ti:$1 | xargs kill -9${NC}"
+            if [ "$1" = "3000" ]; then
+                echo -e "${RED}❌ Porta 3000 é obrigatória para o frontend!${NC}"
+                return 1
+            fi
+        }
+        sleep 1
     fi
 }
 
@@ -97,11 +102,20 @@ fi
 
 echo -e "${GREEN}✅ Pré-requisitos verificados!${NC}"
 
-# Limpar portas se necessário
-echo -e "${BLUE}🧹 Limpando portas...${NC}"
-kill_port 3000  # Frontend
-kill_port 3001  # Frontend alt
-kill_port 3002  # Frontend alt2
+# Verificar se porta 3000 está livre, senão tentar limpar
+echo -e "${BLUE}🔍 Verificando disponibilidade da porta 3000...${NC}"
+if check_port 3000; then
+    echo -e "${YELLOW}⚠️  Porta 3000 está ocupada, tentando liberar...${NC}"
+    lsof -ti:3000 | xargs --no-run-if-empty kill -9 2>/dev/null || {
+        echo -e "${YELLOW}⚠️  Não foi possível liberar a porta 3000 automaticamente${NC}"
+        echo -e "${BLUE}💡 Next.js tentará usar uma porta alternativa (3001, 3002, etc.)${NC}"
+    }
+    sleep 2
+fi
+
+# Limpar outras portas se necessário
+echo -e "${BLUE}🧹 Limpando outras portas...${NC}"
+kill_port 3001  # Frontend alt (caso exista)
 kill_port 8000  # CrewAI API (legacy)
 kill_port 8002  # CrewAI API (current)
 kill_port 8001  # Gatekeeper API
@@ -148,7 +162,20 @@ start_gatekeeper() {
     GATEKEEPER_PID=$!
     
     cd ..
-    sleep 3
+    
+    # Aguardar Gatekeeper estar realmente pronto
+    echo -e "${YELLOW}⏳ Aguardando Gatekeeper estar pronto...${NC}"
+    for i in {1..30}; do
+        if curl -s http://localhost:8001/health > /dev/null 2>&1; then
+            echo -e "${GREEN}✅ Gatekeeper está pronto!${NC}"
+            break
+        fi
+        if [ $i -eq 30 ]; then
+            echo -e "${RED}❌ Timeout: Gatekeeper não ficou pronto${NC}"
+            return 1
+        fi
+        sleep 2
+    done
 }
 
 # Função para iniciar CrewAI Backend
@@ -201,64 +228,101 @@ start_frontend() {
     echo -e "${BLUE}⚛️  Iniciando Frontend React...${NC}"
     cd frontend
     
-    # Verificar se já está rodando
-    if check_port 3002; then
-        echo -e "${YELLOW}⚠️  Frontend já rodando na porta 3002${NC}"
-        cd ..
-        return
-    fi
+    # Next.js escolherá automaticamente uma porta disponível
+    echo -e "${BLUE}🔍 Next.js tentará usar a porta 3000 ou uma alternativa...${NC}"
     
-    # Verificar se dependências já estão instaladas com yarn
-    if [ ! -d "node_modules" ] || [ ! -f "yarn.lock" ]; then
-        echo -e "${YELLOW}📦 Instalando dependências Node.js com Yarn...${NC}"
-        timeout 120 yarn install --silent || {
+    # Limpar cache problemático do Next.js
+    echo -e "${YELLOW}🧹 Limpando cache do Next.js...${NC}"
+    rm -rf .next
+    rm -rf node_modules/.cache
+    rm -rf tsconfig.tsbuildinfo
+    
+    # Verificar se dependências estão instaladas (usa NPM, não Yarn)
+    if [ ! -d "node_modules" ] || [ "package.json" -nt "node_modules" ]; then
+        echo -e "${YELLOW}📦 Instalando dependências Node.js com NPM...${NC}"
+        timeout 120 npm ci --silent || {
             echo -e "${YELLOW}⚠️ Timeout na instalação Node.js - usando cache existente${NC}"
         }
     else
         echo -e "${GREEN}✅ Dependências Node.js já instaladas${NC}"
     fi
     
-    echo -e "${GREEN}🚀 Frontend iniciando na porta 3002...${NC}"
+    # Pre-compilar TypeScript para evitar erros de primeira execução (não para se houver erros)
+    echo -e "${YELLOW}⚙️  Verificando TypeScript...${NC}"
+    npx tsc --noEmit --skipLibCheck 2>/dev/null || echo -e "${YELLOW}⚠️  Alguns erros de TypeScript encontrados, mas Next.js pode lidar com eles...${NC}"
     
-    # Iniciar com log para debugging se necessário
+    echo -e "${GREEN}🚀 Frontend iniciando...${NC}"
+    
+    # Configurar variáveis para melhor performance
+    export NODE_OPTIONS="--max-old-space-size=4096"
+    export NEXT_TELEMETRY_DISABLED=1
+    
+    # Iniciar sem forçar porta específica (Next.js escolherá automaticamente)
     if [ "$DEBUG" = "true" ]; then
-        npm run dev -- -p 3002 &
+        npm run dev &
     else
-        npm run dev -- -p 3002 > /tmp/frontend.log 2>&1 &
+        npm run dev > /tmp/frontend.log 2>&1 &
     fi
     FRONTEND_PID=$!
     
     cd ..
-    sleep 5
+    
+    # Detectar automaticamente em qual porta o frontend está rodando
+    echo -e "${YELLOW}⏳ Aguardando Frontend estar pronto...${NC}"
+    frontend_port=""
+    for i in {1..60}; do
+        # Verificar portas comuns do Next.js (3000, 3001, 3002, etc.)
+        for port in 3000 3001 3002 3003 3004; do
+            if check_port $port; then
+                # Verificar se é realmente o Next.js verificando o log
+                if grep -q "localhost:$port" /tmp/frontend.log 2>/dev/null; then
+                    frontend_port=$port
+                    echo -e "${GREEN}✅ Frontend está pronto na porta $port!${NC}"
+                    break 2
+                fi
+            fi
+        done
+        if [ $i -eq 60 ]; then
+            echo -e "${RED}❌ ERRO: Frontend não ficou pronto após 120s${NC}"
+            echo -e "${YELLOW}🔍 Verifique os logs: tail -f /tmp/frontend.log${NC}"
+            return 1
+        fi
+        sleep 2
+    done
 }
 
-# Iniciar serviços
-start_gatekeeper
-start_crewai
-start_frontend
+# Iniciar serviços NA ORDEM CORRETA (backend primeiro, frontend por último)
+echo -e "${BLUE}🎬 Iniciando serviços em sequência...${NC}"
 
-# Aguardar serviços iniciarem
-echo -e "${BLUE}⏳ Aguardando serviços iniciarem...${NC}"
-sleep 10
+# 1. Gatekeeper API (essencial - backend principal)
+start_gatekeeper || {
+    echo -e "${RED}❌ Falha ao iniciar Gatekeeper - abortando${NC}"
+    exit 1
+}
+
+# 2. CrewAI API (opcional - agentes IA)  
+start_crewai || {
+    echo -e "${YELLOW}⚠️  Falha ao iniciar CrewAI - continuando sem agentes IA${NC}"
+}
+
+# 3. Frontend por último (depende dos backends)
+start_frontend || {
+    echo -e "${RED}❌ Falha ao iniciar Frontend - sistema incompleto${NC}"
+    exit 1
+}
+
+echo -e "${GREEN}✅ Todos os serviços foram iniciados!${NC}"
 
 # Verificar se tudo está rodando
 echo -e "${BLUE}🔍 Verificando status dos serviços...${NC}"
 
 services_ok=true
 
-# Frontend (verificar portas 3002, 3000 ou 3001)
-frontend_port=""
-if check_port 3002; then
-    frontend_port="3002"
-    echo -e "${GREEN}✅ Frontend (3002): OK${NC}"
-elif check_port 3000; then
-    frontend_port="3000"
-    echo -e "${GREEN}✅ Frontend (3000): OK${NC}"
-elif check_port 3001; then
-    frontend_port="3001"
-    echo -e "${GREEN}✅ Frontend (3001): OK${NC}"
+# Frontend (verificar porta detectada dinamicamente)
+if [ ! -z "$frontend_port" ] && check_port $frontend_port; then
+    echo -e "${GREEN}✅ Frontend ($frontend_port): OK${NC}"
 else
-    echo -e "${RED}❌ Frontend (3000/3001/3002): FALHOU${NC}"
+    echo -e "${RED}❌ Frontend: FALHOU - não foi possível detectar a porta${NC}"
     services_ok=false
 fi
 
@@ -292,12 +356,11 @@ if [ "$services_ok" = true ]; then
     echo -e "${GREEN}🎉 SISTEMA INICIADO COM SUCESSO!${NC}"
     echo ""
     echo -e "${BLUE}🌐 SISTEMA COMPLETO DISPONÍVEL:${NC}"
-    if [ ! -z "$frontend_port" ]; then
-        echo -e "   📱 Dashboard:        ${GREEN}http://localhost:$frontend_port${NC}"
-        echo -e "   🤖 Agent Tester:    ${GREEN}http://localhost:$frontend_port/agents${NC}"
-        echo -e "   ⚙️  Configurações:   ${GREEN}http://localhost:$frontend_port/settings${NC}"
-        echo -e "   📊 Monitoramento:    ${GREEN}http://localhost:$frontend_port/monitoring${NC}"
-    fi
+    echo -e "   📱 Dashboard:        ${GREEN}http://localhost:$frontend_port${NC}"
+    echo -e "   🤖 Agent Tester:    ${GREEN}http://localhost:$frontend_port/agents${NC}"
+    echo -e "   ⚙️  Configurações:   ${GREEN}http://localhost:$frontend_port/settings${NC}"
+    echo -e "   📊 Monitoramento:    ${GREEN}http://localhost:$frontend_port/monitoring${NC}"
+    echo -e "   🔗 Visualizações:   ${GREEN}http://localhost:$frontend_port/visualizations${NC}"
     echo -e "   🔐 Gatekeeper API:   ${GREEN}http://localhost:8001${NC}"
     echo -e "   🧠 CrewAI API:       ${GREEN}http://localhost:8002${NC}"
     echo ""
@@ -308,9 +371,7 @@ if [ "$services_ok" = true ]; then
     echo -e "${BLUE}🗄️  DATABASE:${NC}"
     echo -e "   📊 MongoDB Atlas:     ${GREEN}mit_logistics (405 documentos)${NC}"
     echo ""
-    if [ ! -z "$frontend_port" ]; then
-        echo -e "${YELLOW}🚀 ACESSE: http://localhost:$frontend_port${NC}"
-    fi
+    echo -e "${YELLOW}🚀 ACESSE: http://localhost:$frontend_port${NC}"
     echo ""
     echo -e "${BLUE}📝 Para parar o sistema, pressione Ctrl+C${NC}"
     
