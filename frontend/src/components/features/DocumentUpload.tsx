@@ -191,6 +191,12 @@ export function DocumentUpload({
     setFiles(prev => prev.filter(f => f.id !== fileId))
   }
 
+  const handleViewFile = (fileId: string, fileName: string) => {
+    // Usar endpoint /view que serve o arquivo diretamente via proxy da API
+    const viewUrl = `http://localhost:8001/files/${fileId}/view`
+    window.open(viewUrl, '_blank', 'noopener,noreferrer')
+  }
+
   const viewExtractedText = async (file: UploadedFile) => {
     try {
       console.log('🔍 Fetching extracted text for:', file.id)
@@ -401,15 +407,20 @@ Verifique se:
                         📋 Vinculado à: <strong>{file.order_title}</strong>
                       </div>
                     )}
-                    {file.url && (
-                      <a 
-                        href={file.url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
+                    {file.id && (
+                      <button 
+                        onClick={() => handleViewFile(file.id, file.name)}
                         className={styles.fileLink}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'inherit',
+                          textDecoration: 'underline',
+                          cursor: 'pointer'
+                        }}
                       >
                         Ver arquivo
-                      </a>
+                      </button>
                     )}
                     {(() => {
                       console.log('🔍 Rendering file:', file.name, 'processing_result:', file.processing_result)
