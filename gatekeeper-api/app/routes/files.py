@@ -6,6 +6,8 @@ from typing import Optional
 import magic
 import os
 import uuid
+import json
+import logging
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from ..models import DocumentFile, DocumentCategory, ProcessingStatus, Order
@@ -16,6 +18,7 @@ from ..services.vector_search_service import create_vector_search_service
 load_dotenv()
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # Configurações do S3 a partir de variáveis de ambiente
 S3_BUCKET = os.getenv("S3_BUCKET")
@@ -49,10 +52,11 @@ async def upload_file(
         )
 
     try:
-        # Usando python-magic para detectar o tipo de conteúdo de forma mais segura
-        file_content = file.file.read(2048)
-        mime_type = magic.from_buffer(file_content, mime=True)
-        file.file.seek(0)
+        # Ler todo o conteúdo do arquivo uma vez só
+        file_content = await file.read()
+        
+        # Usar python-magic para detectar o tipo de conteúdo de forma mais segura
+        mime_type = magic.from_buffer(file_content[:2048], mime=True)
 
         # Gerar nome único para evitar conflitos
         file_extension = os.path.splitext(file.filename or "unknown")[1].lower()
@@ -60,12 +64,15 @@ async def upload_file(
         
         # Configurar ExtraArgs baseado na opção public
         extra_args = {'ContentType': mime_type}
-        if public:
-            extra_args['ACL'] = 'public-read'
+        # Note: ACL removed as bucket doesn't allow ACLs
+        # if public:
+        #     extra_args['ACL'] = 'public-read'
 
-        # Upload para S3
+        # Upload para S3 usando BytesIO
+        from io import BytesIO
+        file_buffer = BytesIO(file_content)
         s3_client.upload_fileobj(
-            file.file,
+            file_buffer,
             S3_BUCKET,
             unique_filename,
             ExtraArgs=extra_args
@@ -104,20 +111,30 @@ async def upload_file(
         
         # FASE 2: Processamento inteligente assíncrono
         processing_result = None
+        logger.info(f"🔄 Iniciando processamento OCR para arquivo: {file.filename}")
         try:
-            # Re-baixar o arquivo para processamento (em produção, usar fila assíncrona)
-            file.file.seek(0)  # Reset file pointer
-            file_content = file.file.read()
+            logger.info(f"📄 Conteúdo do arquivo: {len(file_content)} bytes")
             
             # Processar documento (OCR + análise)
+            logger.info("🧠 Chamando document_processor.process_document...")
             processing_result = await document_processor.process_document(document_file, file_content)
+            logger.info(f"📊 Resultado do processamento: {processing_result}")
+            
+            # TEMPORARY FIX: Ensure all datetime objects are converted to strings
+            if processing_result and isinstance(processing_result, dict):
+                logger.info("🔧 Convertendo objetos datetime para strings...")
+                processing_result = json.loads(json.dumps(processing_result, default=str))
+                logger.info(f"📊 Resultado após conversão: {processing_result}")
             
             # Se processamento foi bem-sucedido e temos embedding service disponível
-            if processing_result.get('success') and embedding_api_service.is_available():
+            if processing_result and processing_result.get('success') and embedding_api_service.is_available():
+                logger.info("📡 Gerando embeddings...")
                 # Gerar embedding para busca semântica via API
                 await embedding_api_service.update_document_embedding(document_file)
+                logger.info("✅ Embeddings gerados com sucesso")
                 
         except Exception as e:
+            logger.error(f"❌ Erro no processamento OCR: {str(e)}")
             # Log erro mas não falha o upload
             document_file.add_processing_log(f"Erro no processamento inteligente: {str(e)}")
             await document_file.save()
@@ -137,13 +154,14 @@ async def upload_file(
             "order_title": order.title,
             "order_customer": order.customer_name,
             "processing_status": document_file.processing_status.value,
-            "created_at": document_file.uploaded_at.isoformat(),
+            "created_at": document_file.uploaded_at.isoformat() if document_file.uploaded_at else None,
             "relationship": "documento → order (mapa mental)",
             "intelligent_processing": {
                 "enabled": True,
                 "ocr_available": document_processor is not None,
                 "embeddings_available": embedding_api_service.is_available(),
-                "embedding_provider": embedding_api_service.current_provider
+                "embedding_provider": embedding_api_service.current_provider,
+                "result": processing_result if processing_result else None
             }
         }
         

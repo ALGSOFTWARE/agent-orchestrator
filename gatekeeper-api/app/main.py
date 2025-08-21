@@ -116,12 +116,12 @@ async def http_exception_handler(request, exc):
     """Handler personalizado para HTTPExceptions"""
     return JSONResponse(
         status_code=exc.status_code,
-        content=ErrorResponse(
-            code=exc.status_code,
-            message=exc.detail,
-            details=f"Erro na requisição: {request.url}",
-            service="gatekeeper-api"
-        ).dict()
+        content={
+            "code": exc.status_code,
+            "message": str(exc.detail),
+            "details": f"Erro na requisição: {request.url}",
+            "service": "gatekeeper-api"
+        }
     )
 
 @app.exception_handler(Exception)
@@ -130,12 +130,12 @@ async def general_exception_handler(request, exc):
     logger.error(f"Erro não tratado: {str(exc)}")
     return JSONResponse(
         status_code=500,
-        content=ErrorResponse(
-            code=500,
-            message="Erro interno do servidor",
-            details=str(exc),
-            service="gatekeeper-api"
-        ).dict()
+        content={
+            "code": 500,
+            "message": "Erro interno do servidor", 
+            "details": str(exc),
+            "service": "gatekeeper-api"
+        }
     )
 
 if __name__ == "__main__":

@@ -17,6 +17,8 @@ interface UploadedFile {
   error?: string
   order_id?: string
   order_title?: string
+  processing_result?: any
+  extracted_text?: string
 }
 
 interface Order {
@@ -48,20 +50,29 @@ export function DocumentUpload({
   const [orders, setOrders] = useState<Order[]>([])
   const [selectedOrderId, setSelectedOrderId] = useState<string>('')
   const [isLoadingOrders, setIsLoadingOrders] = useState(true)
+  const [showTextModal, setShowTextModal] = useState(false)
+  const [currentTextContent, setCurrentTextContent] = useState('')
+  const [currentFileName, setCurrentFileName] = useState('')
 
   // Carregar Orders disponíveis
   useEffect(() => {
     const fetchOrders = async () => {
       try {
+        console.log('🔄 Fetching orders from API...')
         const response = await fetch('http://localhost:8001/orders/')
         const ordersData = await response.json()
+        console.log('📋 Orders received:', ordersData.length, ordersData)
         setOrders(ordersData)
         // Auto-selecionar primeira Order se houver
         if (ordersData.length > 0) {
-          setSelectedOrderId(ordersData[0].order_id)
+          const firstOrderId = ordersData[0].order_id
+          console.log('✅ Auto-selecting first order:', firstOrderId)
+          setSelectedOrderId(firstOrderId)
+        } else {
+          console.warn('⚠️ No orders found')
         }
       } catch (error) {
-        console.error('Erro ao carregar Orders:', error)
+        console.error('❌ Erro ao carregar Orders:', error)
       } finally {
         setIsLoadingOrders(false)
       }
@@ -79,7 +90,9 @@ export function DocumentUpload({
   }
 
   const validateFile = (file: File): string | null => {
+    console.log('🔍 Validating file:', file.name, 'selectedOrderId:', selectedOrderId)
     if (!selectedOrderId) {
+      console.error('❌ No order selected!')
       return 'Selecione uma Order antes de fazer upload. Todo documento deve estar vinculado a uma Order.'
     }
     if (file.size > maxSizeBytes) {
@@ -95,7 +108,7 @@ export function DocumentUpload({
     return null
   }
 
-  const handleUpload = async (file: File) => {
+  const handleUpload = useCallback(async (file: File) => {
     const validationError = validateFile(file)
     if (validationError) {
       alert(validationError)
@@ -125,6 +138,11 @@ export function DocumentUpload({
         setFiles(prev => prev.map(f => f.id === tempId ? { ...f, uploadProgress: progress } : f))
       })
 
+      console.log('📤 Upload response:', response)
+      console.log('🧠 Intelligent processing:', (response as any).intelligent_processing)
+      console.log('🔍 Full response keys:', Object.keys(response))
+      console.log('🔍 Response type:', typeof response)
+
       const completedFile: UploadedFile = {
         ...newFile,
         id: response.id, // Use o ID real do backend
@@ -133,27 +151,31 @@ export function DocumentUpload({
         url: response.url,
         order_id: response.order_id,
         order_title: response.order_title,
+        processing_result: (response as any).intelligent_processing?.result || (response as any).intelligent_processing,
+        extracted_text: ((response as any).intelligent_processing?.result?.text_length || (response as any).intelligent_processing?.ocr_available) ? 'Texto extraído disponível' : ''
       }
+      
+      console.log('✅ Completed file object:', completedFile)
       setFiles(prev => prev.map(f => f.id === tempId ? completedFile : f))
       onFileUploaded?.(completedFile)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro no upload'
       setFiles(prev => prev.map(f => f.id === tempId ? { ...f, status: 'error', error: errorMessage } : f))
     }
-  }
+  }, [selectedOrderId, publicUpload, onFileUploaded])
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files || [])
     selectedFiles.forEach(handleUpload)
     event.target.value = '' // Reset input
-  }
+  }, [handleUpload])
 
   const handleDrop = useCallback((event: React.DragEvent) => {
     event.preventDefault()
     setIsDragOver(false)
     const droppedFiles = Array.from(event.dataTransfer.files)
     droppedFiles.forEach(handleUpload)
-  }, [files, maxFiles, maxSizeBytes, acceptedTypes])
+  }, [handleUpload])
 
   const handleDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault()
@@ -167,6 +189,59 @@ export function DocumentUpload({
 
   const removeFile = (fileId: string) => {
     setFiles(prev => prev.filter(f => f.id !== fileId))
+  }
+
+  const viewExtractedText = async (file: UploadedFile) => {
+    try {
+      console.log('🔍 Fetching extracted text for:', file.id)
+      
+      // Primeira tentativa: usar dados de processamento já disponíveis
+      if (file.processing_result && file.processing_result.text_length > 0) {
+        // Buscar metadados completos com o texto
+        const response = await fetch(`http://localhost:8001/files/${file.id}/metadata`)
+        const metadata = await response.json()
+        
+        console.log('📄 Metadata received:', metadata)
+        
+        // Verificar se o texto está disponível nos metadados
+        if (metadata.document && metadata.document.text_content_length > 0) {
+          // Como não temos endpoint /text, vamos buscar o documento completo via MongoDB
+          // Por enquanto, vamos mostrar um resumo baseado nos dados disponíveis
+          const summaryText = `
+=== RESUMO DO PROCESSAMENTO OCR ===
+Arquivo: ${file.name}
+Tamanho do texto extraído: ${file.processing_result.text_length} caracteres
+Sentenças encontradas: ${file.processing_result.sentences || 'N/A'}
+
+=== ENTIDADES LOGÍSTICAS ENCONTRADAS ===
+${file.processing_result.logistics_entities?.map((entity: any) => 
+  `${entity.type}: ${entity.value}`
+).join('\n') || 'Nenhuma entidade específica encontrada'}
+
+=== INFORMAÇÕES TÉCNICAS ===
+Confiança do processamento: ${file.processing_result.confidence || 'N/A'}
+Provedor de embedding: ${metadata.embedding_provider || 'N/A'}
+Status: ${metadata.document.processing_status || 'N/A'}
+
+Nota: Para visualizar o texto completo, será necessário implementar 
+endpoint específico na API ou acessar diretamente via MongoDB.
+          `
+          setCurrentTextContent(summaryText)
+        } else {
+          setCurrentTextContent('Texto foi processado mas não está disponível nos metadados.')
+        }
+      } else {
+        setCurrentTextContent('Nenhum texto foi extraído deste documento pelo OCR.')
+      }
+      
+      setCurrentFileName(file.name)
+      setShowTextModal(true)
+    } catch (error) {
+      console.error('Erro ao buscar texto:', error)
+      setCurrentTextContent(`Erro ao carregar informações: ${error}`)
+      setCurrentFileName(file.name)
+      setShowTextModal(true)
+    }
   }
 
   return (
@@ -327,6 +402,42 @@ export function DocumentUpload({
                         Ver arquivo
                       </a>
                     )}
+                    {(() => {
+                      console.log('🔍 Rendering file:', file.name, 'processing_result:', file.processing_result)
+                      console.log('🔍 File status:', file.status, 'ID:', file.id)
+                      
+                      // Mostrar botão sempre que o arquivo estiver completo
+                      if (file.status === 'completed') {
+                        return (
+                          <div className={styles.ocrResults}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => viewExtractedText(file)}
+                              className={styles.viewTextButton}
+                            >
+                              📄 Ver Resultado do OCR ({file.processing_result?.text_length || '?'} chars)
+                            </Button>
+                            {file.processing_result?.logistics_entities?.length > 0 && (
+                              <div className={styles.entitiesFound}>
+                                🏷️ {file.processing_result.logistics_entities.length} entidades logísticas encontradas
+                              </div>
+                            )}
+                            {!file.processing_result && (
+                              <div style={{color: 'blue', fontSize: '12px'}}>
+                                💡 Clique para ver os dados de processamento disponíveis
+                              </div>
+                            )}
+                          </div>
+                        )
+                      } else {
+                        return (
+                          <div style={{color: 'orange', fontSize: '12px'}}>
+                            ⏳ Processando documento...
+                          </div>
+                        )
+                      }
+                    })()}
                   </div>
                 )}
 
@@ -356,6 +467,47 @@ export function DocumentUpload({
               </Button>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Modal de Visualização de Texto */}
+      {showTextModal && (
+        <div className={styles.textModal}>
+          <div className={styles.textModalContent}>
+            <div className={styles.textModalHeader}>
+              <h3>📄 Texto Extraído: {currentFileName}</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowTextModal(false)}
+                className={styles.closeModal}
+              >
+                ✕
+              </Button>
+            </div>
+            <div className={styles.textModalBody}>
+              <pre className={styles.extractedText}>
+                {currentTextContent}
+              </pre>
+            </div>
+            <div className={styles.textModalFooter}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  navigator.clipboard.writeText(currentTextContent)
+                  alert('Texto copiado para a área de transferência!')
+                }}
+              >
+                📋 Copiar Texto
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setShowTextModal(false)}
+              >
+                Fechar
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>
