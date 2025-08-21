@@ -1,0 +1,138 @@
+/* 🃏 MIT Logistics Frontend - Card Styles */
+
+.card {
+  border-radius: var(--radius-lg);
+  background: var(--color-card);
+  transition: all var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+}
+
+/* === VARIANTS === */
+.default {
+  border: 1px solid var(--color-border);
+}
+
+.elevated {
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+}
+
+.outlined {
+  border: 2px solid var(--color-border);
+  background: transparent;
+}
+
+/* === HOVERABLE === */
+.hoverable {
+  cursor: pointer;
+}
+
+.hoverable:hover {
+  border-color: var(--color-primary-200);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.outlined.hoverable:hover {
+  border-color: var(--color-primary-400);
+  background: var(--color-muted);
+}
+
+/* === PADDING === */
+.paddingSm {
+  padding: var(--spacing-sm);
+}
+
+.paddingMd {
+  padding: var(--spacing-md);
+}
+
+.paddingLg {
+  padding: var(--spacing-lg);
+}
+
+.paddingXl {
+  padding: var(--spacing-xl);
+}
+
+/* === CARD COMPONENTS === */
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+}
+
+.title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-foreground);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.description {
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.content {
+  flex: 1;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 768px) {
+  .hoverable:hover {
+    transform: none;
+  }
+  
+  .footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-sm);
+  }
+}
+
+/* === LOADING STATE === */
+.card[data-loading="true"] {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.card[data-loading="true"]::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}

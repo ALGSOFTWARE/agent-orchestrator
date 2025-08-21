@@ -1,0 +1,233 @@
+/* ⏳ MIT Logistics Frontend - Loading Styles */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg);
+}
+
+.fullPage {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(var(--color-background-rgb), 0.8);
+  backdrop-filter: blur(4px);
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-lg);
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* === SIZES === */
+.sm {
+  width: 16px;
+  height: 16px;
+}
+
+.md {
+  width: 24px;
+  height: 24px;
+}
+
+.lg {
+  width: 32px;
+  height: 32px;
+}
+
+.xl {
+  width: 48px;
+  height: 48px;
+}
+
+/* === SPINNER VARIANT === */
+.spinner .spinner {
+  width: 100%;
+  height: 100%;
+  border: 2px solid var(--color-muted);
+  border-top: 2px solid var(--color-primary-600);
+  border-radius: var(--radius-full);
+  animation: spin 1s linear infinite;
+}
+
+/* === DOTS VARIANT === */
+.dots .dots {
+  display: flex;
+  gap: 4px;
+}
+
+.dots .dot {
+  width: 25%;
+  height: 100%;
+  background: var(--color-primary-600);
+  border-radius: var(--radius-full);
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.dots .dot:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.dots .dot:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+.dots .dot:nth-child(3) {
+  animation-delay: 0s;
+}
+
+/* === PULSE VARIANT === */
+.pulse .pulse {
+  width: 100%;
+  height: 100%;
+  background: var(--color-primary-600);
+  border-radius: var(--radius-full);
+  animation: pulse 1.5s infinite;
+}
+
+/* === SKELETON VARIANT === */
+.skeleton .skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  width: 200px;
+}
+
+.skeleton .skeletonLine {
+  height: 12px;
+  background: var(--color-muted);
+  border-radius: var(--radius-sm);
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton .skeletonLine:nth-child(1) {
+  width: 100%;
+}
+
+.skeleton .skeletonLine:nth-child(2) {
+  width: 75%;
+}
+
+.skeleton .skeletonLine:nth-child(3) {
+  width: 50%;
+}
+
+/* === TEXT === */
+.text {
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+  text-align: center;
+  margin-top: var(--spacing-sm);
+}
+
+/* === SKELETON COMPONENTS === */
+.skeletonBase {
+  background: var(--color-muted);
+  animation: shimmer 1.5s infinite;
+  position: relative;
+  overflow: hidden;
+}
+
+.skeletonText {
+  border-radius: var(--radius-sm);
+  height: 1em;
+}
+
+.skeletonCircular {
+  border-radius: var(--radius-full);
+}
+
+.skeletonRectangular {
+  border-radius: var(--radius-md);
+}
+
+.skeletonBase::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
+  animation: shimmerWave 1.5s infinite;
+}
+
+/* === ANIMATIONS === */
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+  }
+  40% {
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes shimmerWave {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 480px) {
+  .fullPage {
+    gap: var(--spacing-md);
+  }
+  
+  .text {
+    font-size: var(--font-size-xs);
+    padding: 0 var(--spacing-md);
+  }
+}
