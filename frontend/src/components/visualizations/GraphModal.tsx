@@ -213,6 +213,7 @@ export function GraphModal({ isOpen, onClose, nodes, edges, title }: GraphModalP
               }))} 
               edges={edges} 
               height={typeof window !== 'undefined' ? window.innerHeight - (showSearch ? 250 : 200) : 800}
+              isInModal={true}
             />
           ) : (
             <div className="flex items-center justify-center w-full h-full min-h-[400px]">

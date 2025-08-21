@@ -22,6 +22,7 @@ interface NetworkGraphProps {
   nodes: GraphNode[]
   edges: GraphEdge[]
   height: number
+  isInModal?: boolean // Indica se o grafo está sendo renderizado dentro de um modal
 }
 
 interface ContextMenuState {
@@ -31,7 +32,7 @@ interface ContextMenuState {
   node: GraphNode | null
 }
 
-export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps) {
+export default function NetworkGraph({ nodes, edges, height, isInModal = false }: NetworkGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false,
@@ -415,7 +416,20 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
   useEffect(() => {
     if (!svgRef.current || nodes.length === 0) return
 
-    // Aguardar renderização e garantir que temos dimensões válidas
+    // Se não está em modal, usar abordagem simples (compatibilidade com versão anterior)
+    if (!isInModal) {
+      const svgElement = svgRef.current
+      const svg = d3.select(svgElement)
+      svg.selectAll("*").remove()
+
+      const width = svgElement.clientWidth || 800
+      const actualHeight = height || 600
+      
+      renderGraph(svg, width, actualHeight)
+      return
+    }
+
+    // Para modais, usar abordagem com aguardo de dimensões
     const initializeGraph = () => {
       const svgElement = svgRef.current
       if (!svgElement) return
@@ -424,22 +438,33 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
       const width = rect.width || svgElement.clientWidth || 800
       const actualHeight = rect.height || svgElement.clientHeight || height || 600
       
-      console.log(`📊 NetworkGraph dimensions: width=${width}, height=${actualHeight}`)
+      console.log(`📊 NetworkGraph (modal) dimensions: width=${width}, height=${actualHeight}`)
       
       if (width <= 0 || actualHeight <= 0) {
-        console.log(`⏳ NetworkGraph waiting for valid dimensions...`)
-        // Aguardar mais um frame se ainda não temos dimensões
+        console.log(`⏳ NetworkGraph (modal) waiting for valid dimensions...`)
         setTimeout(initializeGraph, 100)
         return
       }
       
-      console.log(`✅ NetworkGraph initializing with valid dimensions`)
+      console.log(`✅ NetworkGraph (modal) initializing with valid dimensions`)
       
       try {
+        const svg = d3.select(svgElement)
+        svg.selectAll("*").remove()
+        renderGraph(svg, width, actualHeight)
+      } catch (error) {
+        console.error('❌ Erro ao inicializar NetworkGraph (modal):', error)
+        setTimeout(initializeGraph, 500)
+      }
+    }
 
-      const svg = d3.select(svgElement)
-      svg.selectAll("*").remove() // Limpar conteúdo anterior
+    setTimeout(initializeGraph, 50)
 
+  }, [nodes, edges, height, isInModal])
+
+  // Função para renderizar o grafo (reutilizada para modal e página normal)
+  const renderGraph = (svg: any, width: number, actualHeight: number) => {
+    try {
       // Calcular parâmetros dinâmicos baseado na quantidade de nós
       const orderNodes = nodes.filter(n => n.type === 'order')
       const docNodes = nodes.filter(n => n.type === 'document')
@@ -624,14 +649,14 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
 
       // Adicionar visual de hover
       node.style("cursor", "pointer")
-        .on("mouseenter", function() {
+        .on("mouseenter", function(this: any) {
           d3.select(this).select("circle")
             .transition()
             .duration(200)
             .attr("r", (d: any) => (d.type === 'order' ? 20 : 15) * 1.1)
             .attr("stroke-width", 3)
         })
-        .on("mouseleave", function() {
+        .on("mouseleave", function(this: any) {
           d3.select(this).select("circle")
             .transition()
             .duration(200)
@@ -666,7 +691,7 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
         .style("z-index", "1000")
 
       node
-        .on("mouseover", function(event, d: any) {
+        .on("mouseover", function(this: any, event: any, d: any) {
           tooltip.transition()
             .duration(200)
             .style("opacity", .9)
@@ -685,7 +710,7 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
             .style("left", (event.pageX + 10) + "px")
             .style("top", (event.pageY - 10) + "px")
         })
-        .on("mouseout", function() {
+        .on("mouseout", function(this: any) {
           tooltip.transition()
             .duration(500)
             .style("opacity", 0)
@@ -703,23 +728,17 @@ export default function NetworkGraph({ nodes, edges, height }: NetworkGraphProps
           .attr("transform", (d: any) => `translate(${d.x},${d.y})`)
       })
 
-        // Cleanup
-        return () => {
-          tooltip.remove()
-          simulation.stop()
-        }
-        
-      } catch (error) {
-        console.error('❌ Erro ao inicializar NetworkGraph:', error)
-        // Em caso de erro, tentar novamente após um delay maior
-        setTimeout(initializeGraph, 500)
+      // Cleanup
+      return () => {
+        tooltip.remove()
+        simulation.stop()
       }
+      
+    } catch (error) {
+      console.error('❌ Erro ao renderizar NetworkGraph:', error)
+      throw error
     }
-
-    // Inicializar com pequeno delay para garantir renderização
-    setTimeout(initializeGraph, 50)
-
-  }, [nodes, edges, height])
+  }
 
   const handleZoomIn = () => {
     if (svgRef.current) {
