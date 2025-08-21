@@ -672,3 +672,87 @@ async def download_document(file_id: str):
             status_code=500,
             detail=f"Erro interno ao gerar download: {str(e)}"
         )
+
+
+@router.get("/{file_id}/ocr-text")
+async def get_ocr_text(file_id: str):
+    """
+    Endpoint específico para visualizar o texto completo extraído pelo OCR
+    
+    Args:
+        file_id: ID único do documento no sistema
+        
+    Returns:
+        Dict com texto completo, metadados e informações de processamento
+    """
+    try:
+        # Buscar o documento no banco de dados
+        document = await DocumentFile.find_one(DocumentFile.file_id == file_id)
+        if not document:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Documento com ID '{file_id}' não encontrado"
+            )
+        
+        # Verificar se o documento foi processado
+        if document.processing_status != ProcessingStatus.INDEXED:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Documento ainda não foi processado. Status atual: {document.processing_status}"
+            )
+        
+        # Verificar se há texto extraído
+        if not document.text_content:
+            raise HTTPException(
+                status_code=404,
+                detail="Nenhum texto foi extraído deste documento pelo OCR"
+            )
+        
+        # Buscar informações da Order relacionada para contexto
+        order = None
+        if document.order_id:
+            order = await Order.find_one(Order.order_id == document.order_id)
+        
+        # Preparar resposta com texto completo e metadados
+        response = {
+            "file_id": document.file_id,
+            "original_name": document.original_name,
+            "file_type": document.file_type,
+            "size_bytes": document.size_bytes,
+            "processing_status": document.processing_status,
+            "indexed_at": document.indexed_at.isoformat() if document.indexed_at else None,
+            "uploaded_at": document.uploaded_at.isoformat(),
+            
+            # Texto extraído completo
+            "text_content": document.text_content,
+            "text_length": len(document.text_content) if document.text_content else 0,
+            
+            # Metadados de processamento
+            "tags": document.tags,
+            "processing_logs": document.processing_logs,
+            
+            # Contexto da Order
+            "order_context": {
+                "order_id": document.order_id,
+                "order_title": order.title if order else None,
+                "customer_name": order.customer_name if order else None
+            } if order else None,
+            
+            # URLs para acesso ao arquivo original
+            "file_urls": {
+                "s3_url": document.s3_url,
+                "is_public": document.is_public
+            }
+        }
+        
+        logger.info(f"📖 Texto OCR recuperado para documento {file_id}: {len(document.text_content)} caracteres")
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Erro ao recuperar texto OCR para {file_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro interno ao recuperar texto OCR: {str(e)}"
+        )
