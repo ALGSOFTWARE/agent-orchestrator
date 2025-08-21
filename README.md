@@ -44,7 +44,7 @@ MIT Logistics/
 **Agentes IA (CrewAI):**
 - CrewAI para orquestração de agentes
 - LangChain para processamento de linguagem
-- Ollama para modelos de IA locais
+- APIs de IA externa (OpenAI, Google Gemini)
 - Temperatura baixa (0.3) para precisão
 
 **Visualizações:**
@@ -103,7 +103,7 @@ Após iniciar, acesse:
 | 📈 **Monitoring** | http://localhost:3000/monitoring | Métricas em tempo real |
 | 🔍 **API Explorer** | http://localhost:3000/api | Playground GraphQL |
 | 🛡️ **Gatekeeper API** | http://localhost:8001 | API principal com OCR |
-| 🧠 **Ollama** | http://localhost:11434 | Servidor de IA local |
+| 🤖 **CrewAI Agents** | http://localhost:8000 | Agentes de IA especializados |
 
 ## 🎯 Primeiros Passos
 
@@ -341,13 +341,14 @@ brew install tesseract tesseract-lang                 # macOS
 tesseract --version
 ```
 
-**❌ Ollama não conecta**
+**❌ CrewAI Agents não conecta**
 ```bash
 # Verificar se está rodando
-curl http://localhost:11434/api/version
+curl http://localhost:8000/health
 
-# Reiniciar se necessário
-pkill ollama && ollama serve
+# Iniciar manualmente
+cd python-crewai
+python -m uvicorn api.main:app --reload --port 8000
 ```
 
 **❌ Dependências Python**
@@ -359,10 +360,15 @@ cd python-crewai
 pip3 install --upgrade -r requirements.txt
 ```
 
-**❌ Modelos Ollama não encontrados**
+**❌ APIs de IA não funcionam**
 ```bash
-ollama pull llama3.2:3b
-ollama pull mistral
+# Verificar chaves de API no .env
+echo $OPENAI_API_KEY
+echo $GOOGLE_API_KEY
+
+# Configurar se necessário
+cp .env.example .env
+# Editar .env com suas chaves de API
 ```
 
 **❌ Upload de arquivos falha**
@@ -391,7 +397,7 @@ cd python-crewai && python -m uvicorn api.main:app --log-level debug
 # Status do sistema
 curl http://localhost:3000/api/health
 curl http://localhost:8001/health
-curl http://localhost:11434/api/version
+curl http://localhost:8000/health
 
 # Testar APIs principais
 curl http://localhost:8001/files/
@@ -433,7 +439,7 @@ Para deploy em EC2/servidor, use o script automatizado:
 **Dependências principais:**
 - **Frontend**: Next.js 14, TypeScript, D3.js
 - **Backend**: FastAPI, MongoDB, Beanie ODM
-- **IA**: CrewAI, LangChain, Ollama
+- **IA**: CrewAI, LangChain, OpenAI/Gemini APIs
 - **OCR**: Tesseract, Pillow, PyPDF2
 - **Storage**: AWS S3 (ou MinIO local)
 - **Visualizações**: D3.js, scikit-learn (t-SNE/PCA)
