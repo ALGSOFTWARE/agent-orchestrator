@@ -197,39 +197,43 @@ export function DocumentUpload({
       
       // Primeira tentativa: usar dados de processamento já disponíveis
       if (file.processing_result && file.processing_result.text_length > 0) {
-        // Buscar metadados completos com o texto
-        const response = await fetch(`http://localhost:8001/files/${file.id}/metadata`)
-        const metadata = await response.json()
+        // Usar o novo endpoint específico para OCR text
+        const response = await fetch(`http://localhost:8001/files/${file.id}/ocr-text`)
         
-        console.log('📄 Metadata received:', metadata)
-        
-        // Verificar se o texto está disponível nos metadados
-        if (metadata.document && metadata.document.text_content_length > 0) {
-          // Como não temos endpoint /text, vamos buscar o documento completo via MongoDB
-          // Por enquanto, vamos mostrar um resumo baseado nos dados disponíveis
-          const summaryText = `
-=== RESUMO DO PROCESSAMENTO OCR ===
-Arquivo: ${file.name}
-Tamanho do texto extraído: ${file.processing_result.text_length} caracteres
-Sentenças encontradas: ${file.processing_result.sentences || 'N/A'}
-
-=== ENTIDADES LOGÍSTICAS ENCONTRADAS ===
-${file.processing_result.logistics_entities?.map((entity: any) => 
-  `${entity.type}: ${entity.value}`
-).join('\n') || 'Nenhuma entidade específica encontrada'}
-
-=== INFORMAÇÕES TÉCNICAS ===
-Confiança do processamento: ${file.processing_result.confidence || 'N/A'}
-Provedor de embedding: ${metadata.embedding_provider || 'N/A'}
-Status: ${metadata.document.processing_status || 'N/A'}
-
-Nota: Para visualizar o texto completo, será necessário implementar 
-endpoint específico na API ou acessar diretamente via MongoDB.
-          `
-          setCurrentTextContent(summaryText)
-        } else {
-          setCurrentTextContent('Texto foi processado mas não está disponível nos metadados.')
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
         }
+        
+        const ocrData = await response.json()
+        console.log('📄 OCR Data received:', ocrData)
+        
+        // Formatar o texto completo com metadados
+        const fullText = `
+=== TEXTO COMPLETO EXTRAÍDO ===
+${ocrData.text_content}
+
+=== METADADOS DO DOCUMENTO ===
+Arquivo: ${ocrData.original_name}
+Tipo: ${ocrData.file_type}
+Tamanho: ${ocrData.size_bytes} bytes
+Texto extraído: ${ocrData.text_length} caracteres
+Status: ${ocrData.processing_status}
+Processado em: ${new Date(ocrData.indexed_at).toLocaleString('pt-BR')}
+
+=== ENTIDADES LOGÍSTICAS DETECTADAS ===
+${ocrData.tags?.map((tag: string) => `• ${tag}`).join('\n') || 'Nenhuma entidade específica encontrada'}
+
+=== LOGS DE PROCESSAMENTO ===
+${ocrData.processing_logs?.map((log: string) => `• ${log}`).join('\n') || 'Nenhum log disponível'}
+
+${ocrData.order_context ? `
+=== CONTEXTO DA ORDER ===
+Order ID: ${ocrData.order_context.order_id}
+Título: ${ocrData.order_context.order_title}
+Cliente: ${ocrData.order_context.customer_name}
+` : ''}
+        `
+        setCurrentTextContent(fullText)
       } else {
         setCurrentTextContent('Nenhum texto foi extraído deste documento pelo OCR.')
       }
@@ -238,7 +242,12 @@ endpoint específico na API ou acessar diretamente via MongoDB.
       setShowTextModal(true)
     } catch (error) {
       console.error('Erro ao buscar texto:', error)
-      setCurrentTextContent(`Erro ao carregar informações: ${error}`)
+      setCurrentTextContent(`Erro ao carregar texto do OCR: ${error}
+
+Verifique se:
+- O documento foi processado completamente
+- A API está funcionando corretamente
+- O arquivo possui texto extraível`)
       setCurrentFileName(file.name)
       setShowTextModal(true)
     }
