@@ -756,3 +756,70 @@ async def get_ocr_text(file_id: str):
             status_code=500,
             detail=f"Erro interno ao recuperar texto OCR: {str(e)}"
         )
+
+
+@router.get("/{file_id}/view")
+async def view_file(file_id: str):
+    """
+    Endpoint para visualizar arquivo diretamente via proxy da API
+    Resolve problemas de permissão do S3 servindo o arquivo através da API
+    """
+    try:
+        # Buscar o documento no banco de dados
+        document = await DocumentFile.find_one(DocumentFile.file_id == file_id)
+        if not document:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Documento com ID '{file_id}' não encontrado"
+            )
+        
+        if not all([S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION]):
+            raise HTTPException(status_code=500, detail="Credenciais da AWS não configuradas.")
+        
+        try:
+            # Baixar arquivo do S3
+            response = s3_client.get_object(Bucket=S3_BUCKET, Key=document.s3_key)
+            file_content = response['Body'].read()
+            
+            logger.info(f"📁 Servindo arquivo via proxy: {document.original_name}")
+            
+            # Determinar Content-Type apropriado
+            content_type = document.file_type
+            
+            # Para alguns tipos específicos, forçar download
+            if document.file_type in ['application/pdf']:
+                from fastapi.responses import Response
+                return Response(
+                    content=file_content,
+                    media_type=content_type,
+                    headers={
+                        "Content-Disposition": f'inline; filename="{document.original_name}"'
+                    }
+                )
+            else:
+                # Para texto e imagens, mostrar inline
+                from fastapi.responses import Response  
+                return Response(
+                    content=file_content,
+                    media_type=content_type,
+                    headers={
+                        "Content-Disposition": f'inline; filename="{document.original_name}"'
+                    }
+                )
+                
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            if error_code == 'NoSuchKey':
+                raise HTTPException(status_code=404, detail="Arquivo não encontrado no S3")
+            else:
+                raise HTTPException(status_code=500, detail=f"Erro ao acessar S3: {str(e)}")
+                
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Erro ao servir arquivo {file_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro interno ao servir arquivo: {str(e)}"
+        )
+
