@@ -185,7 +185,10 @@ export default function DocumentsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => window.open(document.url, '_blank')}
+                      onClick={() => {
+                        const viewUrl = `http://localhost:8001/files/${document.id}/view`
+                        window.open(viewUrl, '_blank', 'noopener,noreferrer')
+                      }}
                       className={styles.viewButton}
                     >
                       👁️ Ver
@@ -194,11 +197,9 @@ export default function DocumentsPage() {
                       size="sm"
                       variant="outline"
                       onClick={() => {
-                        // Mock download
-                        const link = window.document.createElement('a')
-                        link.href = document.url
-                        link.download = document.name
-                        link.click()
+                        // Usar endpoint /view para download/visualização
+                        const viewUrl = `http://localhost:8001/files/${document.id}/view`
+                        window.open(viewUrl, '_blank', 'noopener,noreferrer')
                       }}
                       className={styles.downloadButton}
                     >
