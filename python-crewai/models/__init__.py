@@ -1,72 +1,92 @@
-"""
-Types and data structures for MIT Tracking Orchestrator
-"""
-
-from dataclasses import dataclass
-from datetime import datetime
-from enum import Enum
+from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel
+from datetime import datetime
+from beanie import Document, Link
+from uuid import UUID, uuid4
 
+class DocumentFile(BaseModel):
+    """Modelo para qualquer arquivo enviado via upload."""
+    file_name: str
+    s3_url: str
+    file_type: str
+    size: int
+    uploaded_at: datetime = Field(default_factory=datetime.utcnow)
+    # Campos para OCR e busca semântica futura
+    text_content: Optional[str] = None
+    embedding: Optional[List[float]] = None
+    indexed_at: Optional[datetime] = None
 
-class AgentState(Enum):
-    """Estados possíveis do agente"""
-    INITIALIZING = "initializing"
-    READY = "ready"
-    PROCESSING = "processing"
-    ERROR = "error"
-    SHUTDOWN = "shutdown"
+class Order(Document):
+    """Nó central que representa uma Ordem de Serviço ou Operação Logística."""
+    order_id: str = Field(default_factory=lambda: str(uuid4()), unique=True)
+    customer_name: Optional[str] = None
+    description: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    # Documentos estruturados associados a esta Ordem
+    ctes: List[Link["CTEDocument"]] = []
+    bls: List[Link["BLDocument"]] = []
+    containers: List[Link["Container"]] = []
+    
+    # Outros arquivos (fotos, vídeos, PDFs não estruturados, etc.)
+    other_documents: List[DocumentFile] = []
 
+    class Settings:
+        name = "orders"
 
-class QueryType(Enum):
-    """Tipos de consulta logística"""
-    CTE = "cte"
-    CONTAINER = "container"
-    BL = "bl"
-    ETA_ETD = "eta_etd"
-    DELIVERY_STATUS = "delivery_status"
-    GENERAL = "general"
+class CTEDocument(Document):
+    """Conhecimento de Transporte Eletrônico."""
+    cte_number: str = Field(..., unique=True)
+    issuer_name: str
+    recipient_name: str
+    origin_city: str
+    destination_city: str
+    status: str = "Em trânsito"
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    order: Optional[Link[Order]] = None  # Link para a Ordem
 
+    class Settings:
+        name = "cte_documents"
 
-@dataclass
-class AgentStats:
-    """Estatísticas do agente"""
-    total_queries: int = 0
-    successful_queries: int = 0
-    error_count: int = 0
-    average_response_time: float = 0.0
-    session_duration: float = 0.0
+class BLDocument(Document):
+    """Bill of Lading."""
+    bl_number: str = Field(..., unique=True)
+    shipping_line: str
+    vessel_name: str
+    port_of_loading: str
+    port_of_discharge: str
+    status: str = "Aguardando embarque"
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    order: Optional[Link[Order]] = None  # Link para a Ordem
 
+    class Settings:
+        name = "bl_documents"
 
-class OllamaConfig(BaseModel):
-    """Configuração do Ollama"""
-    base_url: str = "http://localhost:11434"
-    model: str = "llama3.2:3b"
-    temperature: float = 0.3
+class Container(Document):
+    """Container."""
+    container_number: str = Field(..., unique=True)
+    container_type: str
+    current_position: Optional[Dict[str, Any]] = None
+    status: str = "Vazio"
+    last_updated: datetime = Field(default_factory=datetime.utcnow)
+    order: Optional[Link[Order]] = None # Link para a Ordem
+    
+    class Settings:
+        name = "containers"
 
+class Transportadora(Document):
+    name: str = Field(..., unique=True)
+    cnpj: str = Field(..., unique=True)
+    
+    class Settings:
+        name = "transportadoras"
 
-class LogisticsQuery(BaseModel):
-    """Query de logística"""
-    content: str
-    query_type: Optional[QueryType] = None
-    session_id: Optional[str] = None
-    timestamp: datetime = datetime.now()
+class Embarcador(Document):
+    name: str = Field(..., unique=True)
+    cnpj: str = Field(..., unique=True)
 
-
-class AgentResponse(BaseModel):
-    """Resposta do agente"""
-    content: str
-    confidence: float
-    response_time: float
-    sources: List[str]
-    query_type: Optional[QueryType] = None
-    agent_id: Optional[str] = None
-
-
-@dataclass
-class ConversationHistory:
-    """Histórico da conversa"""
-    messages: List[Dict[str, Any]]
-    session_id: str
-    start_time: datetime
-    last_activity: datetime
+    class Settings:
+        name = "embarcadores"
