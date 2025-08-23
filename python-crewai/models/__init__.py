@@ -3,6 +3,57 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from beanie import Document, Link
 from uuid import UUID, uuid4
+from enum import Enum
+
+# Agent-related models
+class AgentState(str, Enum):
+    """Estados do agente"""
+    INITIALIZING = "initializing"
+    READY = "ready"
+    PROCESSING = "processing"
+    ERROR = "error"
+    SHUTDOWN = "shutdown"
+
+class QueryType(str, Enum):
+    """Tipos de consulta"""
+    CTE_LOOKUP = "cte_lookup"
+    CONTAINER_TRACKING = "container_tracking"
+    BL_LOOKUP = "bl_lookup"
+    GENERAL_LOGISTICS = "general_logistics"
+    STATUS_UPDATE = "status_update"
+
+class AgentStats(BaseModel):
+    """Estatísticas do agente"""
+    total_queries: int = 0
+    successful_queries: int = 0
+    error_count: int = 0
+    average_response_time: float = 0.0
+    session_duration: float = 0.0
+
+class LogisticsQuery(BaseModel):
+    """Consulta logística estruturada"""
+    content: str
+    query_type: QueryType = QueryType.GENERAL_LOGISTICS
+    user_id: Optional[str] = None
+    session_id: Optional[str] = None
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+class AgentResponse(BaseModel):
+    """Resposta estruturada do agente"""
+    content: str
+    confidence: float
+    response_time: float
+    sources: List[str]
+    query_type: QueryType
+    agent_id: str
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+class ConversationHistory(BaseModel):
+    """Histórico da conversa"""
+    messages: List[Dict[str, str]]
+    session_id: str
+    start_time: datetime
+    last_activity: datetime
 
 class DocumentFile(BaseModel):
     """Modelo para qualquer arquivo enviado via upload."""

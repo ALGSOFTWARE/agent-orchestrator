@@ -11,22 +11,39 @@ Cada agente é implementado usando CrewAI para processamento inteligente.
 """
 
 from crewai import Agent, Task, Crew
-from langchain_ollama import ChatOllama
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Mapping
 import json
 import logging
 from datetime import datetime
 from enum import Enum
+import asyncio
+from langchain_openai import ChatOpenAI
+
+# Import do LLM Router
+from llm_router import generate_llm_response, TaskType, LLMProvider
 
 # Configuração de logging
 logger = logging.getLogger("SpecializedAgents")
 
-# Configuração do modelo LLM
-llm = ChatOllama(
-    model="llama3.2:3b",
-    base_url="http://localhost:11434",
-    temperature=0.3
-)
+
+def create_llm_router(task_type: TaskType = TaskType.GENERAL, temperature: float = 0.3):
+    """Criar LLM usando OpenAI como base, mas com roteamento inteligente"""
+    try:
+        # Se OpenAI está disponível, usar OpenAI diretamente com temperatura baixa
+        import os
+        if os.getenv("OPENAI_API_KEY"):
+            return ChatOpenAI(
+                model="gpt-3.5-turbo",
+                temperature=temperature,
+                openai_api_key=os.getenv("OPENAI_API_KEY")
+            )
+        else:
+            # Fallback para mock se não há API key
+            logger.warning("No OpenAI key found - using mock LLM")
+            return None
+    except Exception as e:
+        logger.error(f"Failed to create OpenAI LLM: {e}")
+        return None
 
 class AgentType(str, Enum):
     """Tipos de agentes especializados"""
@@ -66,6 +83,9 @@ class AdminAgent(BaseSpecializedAgent):
     def __init__(self):
         super().__init__(AgentType.ADMIN)
         
+        # Use LLM Router com TaskType.GENERAL para tarefas administrativas
+        llm_wrapper = create_llm_router(task_type=TaskType.GENERAL, temperature=0.3)
+        
         self.agent = Agent(
             role="Administrador do Sistema Logístico",
             goal="Supervisionar operações gerais e fornecer visão executiva do sistema",
@@ -83,7 +103,7 @@ class AdminAgent(BaseSpecializedAgent):
             """,
             verbose=True,
             allow_delegation=True,
-            llm=llm
+            llm=llm_wrapper
         )
     
     async def process_request(self, user_context: Dict[str, Any], request_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -157,6 +177,9 @@ class LogisticsAgent(BaseSpecializedAgent):
     def __init__(self):
         super().__init__(AgentType.LOGISTICS)
         
+        # Use LLM Router com TaskType.LOGISTICS para tarefas logísticas
+        llm_wrapper = create_llm_router(task_type=TaskType.LOGISTICS, temperature=0.3)
+        
         self.agent = Agent(
             role="Especialista em Logística e Transporte",
             goal="Processar documentos logísticos e fornecer insights especializados",
@@ -175,7 +198,7 @@ class LogisticsAgent(BaseSpecializedAgent):
             """,
             verbose=True,
             allow_delegation=False,
-            llm=llm
+            llm=llm_wrapper
         )
     
     async def process_request(self, user_context: Dict[str, Any], request_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -254,6 +277,9 @@ class FinanceAgent(BaseSpecializedAgent):
     def __init__(self):
         super().__init__(AgentType.FINANCE)
         
+        # Use LLM Router com TaskType.FINANCIAL para tarefas financeiras
+        llm_wrapper = create_llm_router(task_type=TaskType.FINANCIAL, temperature=0.3)
+        
         self.agent = Agent(
             role="Especialista Financeiro em Logística",
             goal="Processar informações financeiras e fornecer análises de custos logísticos",
@@ -273,7 +299,7 @@ class FinanceAgent(BaseSpecializedAgent):
             """,
             verbose=True,
             allow_delegation=False,
-            llm=llm
+            llm=llm_wrapper
         )
     
     async def process_request(self, user_context: Dict[str, Any], request_data: Dict[str, Any]) -> Dict[str, Any]:
