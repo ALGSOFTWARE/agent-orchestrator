@@ -640,15 +640,39 @@ class CrewAIDocumentTool:
     def __init__(self):
         self.processor = DocumentProcessor()
     
+    def _run_async(self, coro):
+        """Executa corrotina assíncrona de forma síncrona"""
+        try:
+            # Verifica se já existe um loop rodando
+            loop = asyncio.get_running_loop()
+            # Se existe, executa em thread separada
+            import concurrent.futures
+            
+            def run_in_thread():
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                try:
+                    return new_loop.run_until_complete(coro)
+                finally:
+                    new_loop.close()
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_in_thread)
+                return future.result()
+                
+        except RuntimeError:
+            # Não há loop rodando, pode usar run_until_complete
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            return loop.run_until_complete(coro)
+    
     def processar_documento(self, caminho_arquivo: str) -> str:
         """Processa documento e retorna análise - método síncrono para agents"""
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        
-        analysis = loop.run_until_complete(
+        analysis = self._run_async(
             self.processor.analyze_document(caminho_arquivo)
         )
         
@@ -675,14 +699,14 @@ class CrewAIDocumentTool:
     def extrair_texto_simples(self, caminho_arquivo: str) -> str:
         """Extrai apenas o texto do documento"""
         try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            ocr_result = self._run_async(
+                self.processor.extract_text_from_file(caminho_arquivo)
+            )
+        except Exception as e:
+            return f"❌ Erro ao processar documento: {str(e)}"
         
-        ocr_result = loop.run_until_complete(
-            self.processor.extract_text_from_file(caminho_arquivo)
-        )
+        if not hasattr(ocr_result, 'text'):
+            return "❌ Erro: arquivo não encontrado ou formato não suportado"
         
         return f"✅ Texto extraído ({ocr_result.confidence:.1%} confiança):\n\n{ocr_result.text}"
 
