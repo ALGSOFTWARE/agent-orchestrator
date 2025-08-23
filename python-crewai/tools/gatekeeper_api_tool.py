@@ -575,12 +575,33 @@ class CrewAIGatekeeperTool:
     def _run_async(self, coro):
         """Executa corrotina assíncrona de forma síncrona"""
         try:
-            loop = asyncio.get_event_loop()
+            # Verifica se já existe um loop rodando
+            loop = asyncio.get_running_loop()
+            # Se existe, usa asyncio.run_coroutine_threadsafe
+            import concurrent.futures
+            import threading
+            
+            def run_in_thread():
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                try:
+                    return new_loop.run_until_complete(coro)
+                finally:
+                    new_loop.close()
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_in_thread)
+                return future.result()
+                
         except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        
-        return loop.run_until_complete(coro)
+            # Não há loop rodando, pode usar run_until_complete
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            return loop.run_until_complete(coro)
     
     def _format_response(self, response: APIResponse) -> str:
         """Formata resposta para consumo pelos agentes"""
