@@ -1,0 +1,190 @@
+name: Deploy to AWS EC2
+
+on:
+  push:
+    branches: [ dev, main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  PYTHON_VERSION: '3.12'
+  NODE_VERSION: '18'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Run Tests
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('gatekeeper-api/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        cd gatekeeper-api
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-asyncio httpx
+    
+    - name: Run tests
+      run: |
+        cd gatekeeper-api
+        python -m pytest test_gatekeeper.py -v
+
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
+    name: Deploy to Staging
+    environment: staging
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Deploy to EC2 Staging
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          cd /home/ubuntu
+          
+          # Backup atual
+          if [ -d "gatekeeper-api" ]; then
+            sudo mv gatekeeper-api gatekeeper-api-backup-$(date +%Y%m%d-%H%M%S)
+          fi
+          
+          # Clone do repo
+          git clone https://github.com/${{ github.repository }}.git temp-repo
+          cd temp-repo
+          git checkout dev
+          
+          # Move API para local correto
+          mv gatekeeper-api /home/ubuntu/
+          cd /home/ubuntu/gatekeeper-api
+          
+          # Instala dependências
+          python3 -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt
+          
+          # Cria .env com secrets
+          cat > .env << EOF
+          MONGODB_URL=${{ secrets.MONGODB_URL }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          DATABASE_NAME=mit_logistics
+          NODE_ENV=staging
+          DEBUG=false
+          LOG_LEVEL=INFO
+          EOF
+          
+          # Restart serviços
+          sudo systemctl restart gatekeeper-api
+          sudo systemctl restart nginx
+          
+          # Cleanup
+          rm -rf /home/ubuntu/temp-repo
+          
+          # Verificar se está rodando
+          sleep 5
+          curl -f http://localhost:8000/health || exit 1
+          
+          echo "🚀 Deploy staging concluído!"
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    name: Deploy to Production
+    environment: production
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Deploy to EC2 Production
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.EC2_HOST_PROD }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          cd /home/ubuntu
+          
+          # Backup atual
+          if [ -d "gatekeeper-api" ]; then
+            sudo mv gatekeeper-api gatekeeper-api-backup-$(date +%Y%m%d-%H%M%S)
+          fi
+          
+          # Clone do repo
+          git clone https://github.com/${{ github.repository }}.git temp-repo
+          cd temp-repo
+          git checkout main
+          
+          # Move API para local correto
+          mv gatekeeper-api /home/ubuntu/
+          cd /home/ubuntu/gatekeeper-api
+          
+          # Instala dependências
+          python3 -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt
+          
+          # Cria .env com secrets de produção
+          cat > .env << EOF
+          MONGODB_URL=${{ secrets.MONGODB_URL_PROD }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          DATABASE_NAME=mit_logistics_prod
+          NODE_ENV=production
+          DEBUG=false
+          LOG_LEVEL=WARNING
+          EOF
+          
+          # Restart serviços
+          sudo systemctl restart gatekeeper-api
+          sudo systemctl restart nginx
+          
+          # Cleanup
+          rm -rf /home/ubuntu/temp-repo
+          
+          # Verificar se está rodando
+          sleep 5
+          curl -f http://localhost:8000/health || exit 1
+          
+          echo "🎉 Deploy produção concluído!"
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, deploy-production]
+    if: always()
+    name: Notify Deploy Status
+    
+    steps:
+    - name: Notify Success
+      if: needs.deploy-staging.result == 'success' || needs.deploy-production.result == 'success'
+      run: |
+        echo "✅ Deploy realizado com sucesso!"
+        echo "Branch: ${{ github.ref_name }}"
+        echo "Commit: ${{ github.sha }}"
+    
+    - name: Notify Failure
+      if: needs.deploy-staging.result == 'failure' || needs.deploy-production.result == 'failure'
+      run: |
+        echo "❌ Deploy falhou!"
+        echo "Branch: ${{ github.ref_name }}"
+        echo "Commit: ${{ github.sha }}"
+        exit 1
