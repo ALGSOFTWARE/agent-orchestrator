@@ -46,19 +46,7 @@ jobs:
           python -m pytest -v
         else
           echo "⚠️  Nenhum teste pytest encontrado, executando verificação básica..."
-          python -c "
-import sys
-sys.path.append('.')
-try:
-    from app.main import app
-    print('✅ Importação da aplicação bem-sucedida')
-    from app.models import User, Order, DocumentFile
-    print('✅ Modelos importados com sucesso')
-    print('✅ Verificação básica concluída')
-except Exception as e:
-    print(f'❌ Erro na verificação: {e}')
-    sys.exit(1)
-          "
+          python -c "import sys; sys.path.append('.'); from app.main import app; print('✅ Importação da aplicação bem-sucedida'); from app.models import User, Order, DocumentFile; print('✅ Modelos importados com sucesso'); print('✅ Verificação básica concluída')"
         fi
 
   deploy-staging:
