@@ -34,7 +34,7 @@ jobs:
     - name: Install dependencies
       run: |
         cd gatekeeper-api
-        python -m pip install --upgrade pip
+        python -m pip install --upgrade pip setuptools wheel
         pip install -r requirements.txt
         pip install pytest pytest-asyncio httpx
     
@@ -79,6 +79,7 @@ jobs:
           # Instala dependências
           python3 -m venv venv
           source venv/bin/activate
+          pip install --upgrade pip setuptools wheel
           pip install -r requirements.txt
           
           # Cria .env com secrets
@@ -141,6 +142,7 @@ jobs:
           # Instala dependências
           python3 -m venv venv
           source venv/bin/activate
+          pip install --upgrade pip setuptools wheel
           pip install -r requirements.txt
           
           # Cria .env com secrets de produção
