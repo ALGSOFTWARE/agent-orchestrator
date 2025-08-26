@@ -108,7 +108,7 @@ fi
 
 # Ativar venv e instalar dependências
 source venv/bin/activate
-pip install --upgrade pip
+pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 
 # Criar arquivo .env
