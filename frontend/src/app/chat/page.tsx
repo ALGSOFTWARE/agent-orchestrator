@@ -44,10 +44,10 @@ export default function ChatPlaygroundPage() {
   // Update default models when available models load
   useEffect(() => {
     if (openaiModels.length > 0 && !openaiModels.find(m => m.id === config.openaiModel)) {
-      setConfig(prev => ({ ...prev, openaiModel: openaiModels[0].id }))
+      setConfig(prev => ({ ...prev, openaiModel: openaiModels[0]?.id || 'gpt-4o-mini' })) // Added ?. and fallback
     }
     if (geminiModels.length > 0 && !geminiModels.find(m => m.id === config.geminiModel)) {
-      setConfig(prev => ({ ...prev, geminiModel: geminiModels[0].id }))
+      setConfig(prev => ({ ...prev, geminiModel: geminiModels[0]?.id || 'gemini-1.5-flash' })) // Added ?. and fallback
     }
   }, [openaiModels, geminiModels, config.openaiModel, config.geminiModel])
 

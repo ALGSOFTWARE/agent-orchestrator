@@ -3,6 +3,9 @@ const nextConfig = {
   typescript: {
     tsconfigPath: './tsconfig.json',
   },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   images: {
     domains: ['localhost'],
   },

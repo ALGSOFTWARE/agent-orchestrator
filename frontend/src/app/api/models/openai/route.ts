@@ -2,6 +2,8 @@
 
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 const OPENAI_MODELS_URL = 'https://api.openai.com/v1/models'
 
 // Cache for 5 minutes

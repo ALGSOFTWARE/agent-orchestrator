@@ -2,6 +2,8 @@
 
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 const GEMINI_MODELS_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
 
 // Cache for 5 minutes

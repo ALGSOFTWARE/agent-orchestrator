@@ -27,7 +27,7 @@ export default function MonitoringPage() {
   
   const [isLoading, setIsLoading] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(true)
-  const toast = useToast()
+  const { toast } = useToast()
 
   // Mock data generator for demonstration
   const generateMockMetrics = (): SystemMetrics => ({

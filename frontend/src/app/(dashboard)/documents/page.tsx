@@ -16,34 +16,44 @@ interface UploadedDocument {
   category: 'cte' | 'bl' | 'invoice' | 'other'
 }
 
+interface FileFromUploader {
+    id: string;
+    name: string;
+    size: number;
+    type: string;
+    status: 'uploading' | 'completed' | 'error';
+    url?: string;
+}
+
 export default function DocumentsPage() {
   const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
 
-  const handleFileUploaded = (file: any) => {
-    // Automatically categorize based on file name/type
-    let category: UploadedDocument['category'] = 'other'
-    const fileName = file.name.toLowerCase()
-    
-    if (fileName.includes('cte') || fileName.includes('conhecimento')) {
-      category = 'cte'
-    } else if (fileName.includes('bl') || fileName.includes('lading')) {
-      category = 'bl'
-    } else if (fileName.includes('invoice') || fileName.includes('fatura')) {
-      category = 'invoice'
-    }
+  const handleFileUploaded = (file: FileFromUploader) => {
+    if (file.status === 'completed' && file.url) {
+      let category: UploadedDocument['category'] = 'other'
+      const fileName = file.name.toLowerCase()
+      
+      if (fileName.includes('cte') || fileName.includes('conhecimento')) {
+        category = 'cte'
+      } else if (fileName.includes('bl') || fileName.includes('lading')) {
+        category = 'bl'
+      } else if (fileName.includes('invoice') || fileName.includes('fatura')) {
+        category = 'invoice'
+      }
 
-    const document: UploadedDocument = {
-      id: file.id,
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      url: file.url || '#',
-      uploadedAt: new Date().toISOString(),
-      category
-    }
+      const document: UploadedDocument = {
+        id: file.id,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        url: file.url,
+        uploadedAt: new Date().toISOString(),
+        category
+      }
 
-    setUploadedDocuments(prev => [document, ...prev])
+      setUploadedDocuments(prev => [document, ...prev])
+    }
   }
 
   const getCategoryLabel = (category: string) => {
@@ -175,7 +185,10 @@ export default function DocumentsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => window.open(document.url, '_blank')}
+                      onClick={() => {
+                        const viewUrl = `http://localhost:8001/files/${document.id}/view`
+                        window.open(viewUrl, '_blank', 'noopener,noreferrer')
+                      }}
                       className={styles.viewButton}
                     >
                       👁️ Ver
@@ -184,11 +197,9 @@ export default function DocumentsPage() {
                       size="sm"
                       variant="outline"
                       onClick={() => {
-                        // Mock download
-                        const link = window.document.createElement('a')
-                        link.href = document.url
-                        link.download = document.name
-                        link.click()
+                        // Usar endpoint /view para download/visualização
+                        const viewUrl = `http://localhost:8001/files/${document.id}/view`
+                        window.open(viewUrl, '_blank', 'noopener,noreferrer')
                       }}
                       className={styles.downloadButton}
                     >

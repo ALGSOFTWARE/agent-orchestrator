@@ -1,0 +1,378 @@
+/* 🗄️ MIT Logistics Frontend - CRUD Manager Styles */
+
+.crudManager {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  max-width: 100%;
+  min-height: 80vh;
+}
+
+/* === HEADER === */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.header h2 {
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.stats {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+/* === ENTITY TABS === */
+.entityTabs {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.5rem;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.entityTab {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  background: var(--background-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.entityTab:hover {
+  background: var(--background-hover);
+  color: var(--text-primary);
+  border-color: var(--primary-color);
+}
+
+.entityTab.active {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+  font-weight: 600;
+}
+
+/* === ERROR DISPLAY === */
+.error {
+  padding: 1rem;
+  background: var(--error-background, #fef2f2);
+  border: 1px solid var(--error-color, #fca5a5);
+  border-radius: 0.5rem;
+  color: var(--error-color, #dc2626);
+  font-weight: 500;
+}
+
+/* === MAIN CONTENT === */
+.content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  flex: 1;
+  min-height: 0;
+}
+
+/* === LEFT PANEL === */
+.leftPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  overflow: hidden;
+}
+
+.listHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.listHeader h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* === ENTITY LIST === */
+.entityList {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 200px;
+  max-height: 400px;
+  padding-right: 0.5rem;
+}
+
+.entityItem {
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--background-primary);
+}
+
+.entityItem:hover {
+  border-color: var(--primary-color);
+  background: var(--background-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.entityItem.selected {
+  border-color: var(--primary-color);
+  background: var(--primary-background, #eff6ff);
+  border-width: 2px;
+}
+
+.entityHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.entityHeader strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.entityDetails {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+/* === LOADING & EMPTY STATES === */
+.loading, .empty, .noSelection, .notImplemented {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  text-align: center;
+}
+
+.empty {
+  background: var(--background-hover);
+  border-radius: 0.5rem;
+  border: 2px dashed var(--border-color);
+}
+
+/* === PAGINATION === */
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  margin-top: auto;
+}
+
+.pagination span {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* === RIGHT PANEL === */
+.rightPanel {
+  display: flex;
+  flex-direction: column;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  overflow: hidden;
+}
+
+/* === ENTITY DETAILS === */
+.detailsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 1rem;
+}
+
+.detailsHeader h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.jsonDisplay {
+  flex: 1;
+  background: var(--background-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--text-primary);
+  max-height: 500px;
+}
+
+/* === CREATE FORM === */
+.createForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  flex: 1;
+}
+
+.createForm h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.formRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.formRow label {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.select {
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  background: var(--background-primary);
+  color: var(--text-primary);
+  font-size: 1rem;
+  transition: border-color 0.2s ease;
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px var(--primary-background, rgba(59, 130, 246, 0.1));
+}
+
+.formActions {
+  display: flex;
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  margin-top: auto;
+}
+
+.notImplemented {
+  background: var(--warning-background, #fef3c7);
+  border: 1px solid var(--warning-color, #f59e0b);
+  color: var(--warning-color, #d97706);
+  border-radius: 0.5rem;
+  padding: 2rem;
+  text-align: center;
+  font-style: italic;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 1024px) {
+  .content {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .entityTabs {
+    flex-wrap: wrap;
+  }
+
+  .entityTab {
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .crudManager {
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .stats {
+    flex-wrap: wrap;
+  }
+
+  .leftPanel, .rightPanel {
+    padding: 1rem;
+  }
+
+  .formActions {
+    flex-direction: column;
+  }
+
+  .pagination {
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: center;
+  }
+}
+
+/* === SCROLLBAR STYLING === */
+.entityList::-webkit-scrollbar,
+.jsonDisplay::-webkit-scrollbar {
+  width: 6px;
+}
+
+.entityList::-webkit-scrollbar-track,
+.jsonDisplay::-webkit-scrollbar-track {
+  background: var(--background-secondary);
+  border-radius: 3px;
+}
+
+.entityList::-webkit-scrollbar-thumb,
+.jsonDisplay::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+.entityList::-webkit-scrollbar-thumb:hover,
+.jsonDisplay::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}

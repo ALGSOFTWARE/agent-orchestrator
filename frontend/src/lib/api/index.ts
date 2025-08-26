@@ -4,6 +4,7 @@
 export * from './client'
 export * from './gatekeeper'
 export * from './graphql'
+export * from './crud'
 
 // Main API client instances
 export { 
@@ -12,8 +13,16 @@ export {
   ollamaClient,
   graphqlQuery,
   checkServiceHealth,
-  uploadFile
+  uploadFile,
+  uploadFile as apiUploadFile  // Alias para compatibilidade
 } from './client'
+
+import { gatekeeperClient } from './client'
+
+// File management functions
+export async function getSignedUrl(filename: string, expiresIn: number = 3600) {
+  return gatekeeperClient.getRaw(`/files/signed-url/${filename}?expires_in=${expiresIn}`)
+}
 
 // Gatekeeper API
 export {
