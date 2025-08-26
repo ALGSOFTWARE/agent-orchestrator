@@ -114,7 +114,7 @@ class ApiClient {
     }
 
     // Gatekeeper endpoints
-    if (path.includes('/gatekeeper/auth-callback')) {
+    if (path.includes('/auth/callback')) {
       return {
         status: 'success',
         message: 'Authentication successful (mock)',
@@ -132,7 +132,7 @@ class ApiClient {
       }
     }
 
-    if (path.includes('/gatekeeper/info')) {
+    if (path.includes('/info')) {
       return {
         service: 'Gatekeeper Agent',
         version: '1.0.0',
@@ -144,11 +144,11 @@ class ApiClient {
           'finance': 'Financial Agent',
           'operator': 'MIT Tracking Agent'
         },
-        endpoints: ['/gatekeeper/auth-callback', '/gatekeeper/health', '/gatekeeper/info', '/gatekeeper/roles']
+        endpoints: ['/auth/callback', '/health', '/info', '/auth/roles']
       }
     }
 
-    if (path.includes('/gatekeeper/roles')) {
+    if (path.includes('/auth/roles')) {
       return {
         available_roles: ['admin', 'logistics', 'finance', 'operator'],
         role_permissions: {
@@ -213,6 +213,16 @@ class ApiClient {
 
   async postRaw<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
     const response = await this.client.post<T>(url, data, config)
+    return response.data
+  }
+
+  async putRaw<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.put<T>(url, data, config)
+    return response.data
+  }
+
+  async deleteRaw<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.delete<T>(url, config)
     return response.data
   }
 
@@ -286,7 +296,7 @@ export async function checkServiceHealth(service: 'api' | 'gatekeeper' | 'ollama
         break
       case 'gatekeeper':
         client = gatekeeperClient
-        endpoint = '/gatekeeper/health'
+        endpoint = '/health'
         break
       case 'ollama':
         client = ollamaClient
@@ -323,7 +333,7 @@ export async function uploadFile(
   file: File,
   endpoint: string = '/upload',
   onProgress?: (progress: number) => void
-): Promise<{ url: string; id: string }> {
+): Promise<{ url: string; id: string; order_id: string; order_title: string }> {
   const formData = new FormData()
   formData.append('file', file)
 
@@ -339,7 +349,7 @@ export async function uploadFile(
     },
   }
 
-  const response = await apiClient.postRaw<{ url: string; id: string }>(
+  const response = await gatekeeperClient.postRaw<{ url: string; id: string; order_id: string; order_title: string }>(
     endpoint,
     formData,
     config

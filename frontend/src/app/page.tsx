@@ -130,10 +130,37 @@ export default function HomePage() {
             </div>
 
             <div className={styles.feature}>
+              <div className={styles.featureIcon}>📋</div>
+              <h3>Gerenciamento de Orders</h3>
+              <p>Super-contêineres que organizam todos os documentos de uma operação</p>
+              <Link href="/orders" className={styles.featureLink}>
+                Gerenciar Orders →
+              </Link>
+            </div>
+
+            <div className={styles.feature}>
+              <div className={styles.featureIcon}>🗺️</div>
+              <h3>Visualizações Inteligentes</h3>
+              <p>Grafos, mapas semânticos e busca visual com D3.js</p>
+              <Link href="/visualizations" className={styles.featureLink}>
+                Visualizar →
+              </Link>
+            </div>
+
+            <div className={styles.feature}>
+              <div className={styles.featureIcon}>🔍</div>
+              <h3>Busca Clássica</h3>
+              <p>Busca tradicional de documentos com filtros</p>
+              <Link href="/search" className={styles.featureLink}>
+                Buscar →
+              </Link>
+            </div>
+
+            <div className={styles.feature}>
               <div className={styles.featureIcon}>📎</div>
               <h3>Upload de Documentos</h3>
               <p>Teste processamento de CT-e, PDFs e imagens</p>
-              <Link href="/agents?tab=upload" className={styles.featureLink}>
+              <Link href="/documents" className={styles.featureLink}>
                 Upload →
               </Link>
             </div>

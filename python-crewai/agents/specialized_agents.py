@@ -11,22 +11,164 @@ Cada agente é implementado usando CrewAI para processamento inteligente.
 """
 
 from crewai import Agent, Task, Crew
-from langchain_ollama import ChatOllama
-from typing import Dict, List, Any, Optional
+from crewai_tools import tool
+from typing import Dict, List, Any, Optional, Mapping
 import json
 import logging
 from datetime import datetime
 from enum import Enum
+import asyncio
+from langchain_openai import ChatOpenAI
+
+# Import do LLM Router
+from llm_router import generate_llm_response, TaskType, LLMProvider
+
+# Import das novas ferramentas
+from tools.gatekeeper_api_tool import (
+    consultar_order, buscar_orders, consultar_cte, 
+    consultar_container, busca_semantica, verificar_saude_sistema
+)
+from tools.document_processor import processar_documento, extrair_texto_simples
+from tools.webhook_processor import iniciar_servidor_webhooks, obter_stats_webhooks
 
 # Configuração de logging
 logger = logging.getLogger("SpecializedAgents")
 
-# Configuração do modelo LLM
-llm = ChatOllama(
-    model="llama3.2:3b",
-    base_url="http://localhost:11434",
-    temperature=0.3
-)
+
+# === CREWAI TOOLS INTEGRATION ===
+
+@tool("consultar_order")
+def tool_consultar_order(order_id: str) -> str:
+    """
+    Consulta informações detalhadas de uma Order por ID.
+    
+    Args:
+        order_id: ID da Order no sistema
+    
+    Returns:
+        Informações completas da Order incluindo documentos
+    """
+    return consultar_order(order_id)
+
+@tool("buscar_orders")  
+def tool_buscar_orders(customer_name: str = None, limit: int = 10) -> str:
+    """
+    Busca Orders no sistema com filtros opcionais.
+    
+    Args:
+        customer_name: Nome do cliente para filtrar (opcional)
+        limit: Número máximo de resultados (padrão: 10)
+    
+    Returns:
+        Lista de Orders encontradas
+    """
+    return buscar_orders(customer_name, limit)
+
+@tool("consultar_cte")
+def tool_consultar_cte(numero_cte: str) -> str:
+    """
+    Consulta informações de CT-e por número.
+    
+    Args:
+        numero_cte: Número do CT-e (44 dígitos)
+    
+    Returns:
+        Dados completos do CT-e incluindo transportadora e rotas
+    """
+    return consultar_cte(numero_cte)
+
+@tool("consultar_container")
+def tool_consultar_container(numero_container: str) -> str:
+    """
+    Consulta informações e localização de container.
+    
+    Args:
+        numero_container: Número do container
+    
+    Returns:
+        Posição atual, histórico e status do container
+    """
+    return consultar_container(numero_container)
+
+@tool("busca_semantica_documentos")
+def tool_busca_semantica(texto_busca: str, limit: int = 5) -> str:
+    """
+    Realiza busca semântica nos documentos do sistema.
+    
+    Args:
+        texto_busca: Texto ou palavra-chave para buscar
+        limit: Número máximo de resultados (padrão: 5)
+    
+    Returns:
+        Documentos relacionados com score de similaridade
+    """
+    return busca_semantica(texto_busca, limit)
+
+@tool("processar_documento_ocr")
+def tool_processar_documento(caminho_arquivo: str) -> str:
+    """
+    Processa documento com OCR e análise de IA.
+    
+    Args:
+        caminho_arquivo: Caminho para o arquivo (PDF, imagem, etc)
+    
+    Returns:
+        Texto extraído, dados estruturados e análise completa
+    """
+    return processar_documento(caminho_arquivo)
+
+@tool("extrair_texto_arquivo")
+def tool_extrair_texto(caminho_arquivo: str) -> str:
+    """
+    Extrai apenas o texto de um arquivo via OCR.
+    
+    Args:
+        caminho_arquivo: Caminho para o arquivo
+    
+    Returns:
+        Texto extraído do documento
+    """
+    return extrair_texto_simples(caminho_arquivo)
+
+@tool("verificar_saude_sistema")
+def tool_verificar_saude() -> str:
+    """
+    Verifica a saúde do sistema Gatekeeper API.
+    
+    Returns:
+        Status de saúde e métricas do sistema
+    """
+    return verificar_saude_sistema()
+
+@tool("obter_estatisticas_webhooks")
+def tool_stats_webhooks() -> str:
+    """
+    Obtém estatísticas do sistema de webhooks.
+    
+    Returns:
+        Estatísticas de eventos processados e fila atual
+    """
+    return obter_stats_webhooks()
+
+
+def create_llm_router(task_type: TaskType = TaskType.GENERAL, temperature: float = 0.3):
+    """Criar LLM usando OpenAI como base, mas com roteamento inteligente"""
+    try:
+        # Se OpenAI está disponível, usar OpenAI diretamente com temperatura baixa
+        import os
+        if os.getenv("OPENAI_API_KEY"):
+            return ChatOpenAI(
+                model="gpt-3.5-turbo",
+                temperature=temperature,
+                openai_api_key=os.getenv("OPENAI_API_KEY")
+            )
+        else:
+            # Fallback para mock se não há API key
+            logger.warning("No OpenAI key found - using mock LLM")
+            return None
+    except Exception as e:
+        logger.error(f"Failed to create OpenAI LLM: {e}")
+        return None
 
 class AgentType(str, Enum):
     """Tipos de agentes especializados"""
@@ -66,24 +208,39 @@ class AdminAgent(BaseSpecializedAgent):
     def __init__(self):
         super().__init__(AgentType.ADMIN)
         
+        # Use LLM Router com TaskType.GENERAL para tarefas administrativas
+        llm_wrapper = create_llm_router(task_type=TaskType.GENERAL, temperature=0.3)
+        
+        # Ferramentas específicas para AdminAgent
+        admin_tools = [
+            tool_buscar_orders,
+            tool_consultar_order,
+            tool_verificar_saude,
+            tool_stats_webhooks,
+            tool_busca_semantica
+        ]
+        
         self.agent = Agent(
             role="Administrador do Sistema Logístico",
             goal="Supervisionar operações gerais e fornecer visão executiva do sistema",
             backstory="""
             Você é um administrador experiente do sistema de logística inteligente.
-            Tem acesso completo a todas as funcionalidades e dados do sistema.
-            Sua função é supervisionar operações, gerenciar usuários, e fornecer
-            insights estratégicos para otimização dos processos logísticos.
+            Tem acesso completo a todas as funcionalidades e dados do sistema através
+            de ferramentas GraphQL integradas que permitem consultas em tempo real.
             
-            Você pode visualizar e analisar:
-            - Todos os pedidos e fretes em qualquer etapa
-            - Performance de operadores e equipes
-            - Métricas financeiras e operacionais
-            - Status geral do sistema
+            Suas capacidades incluem:
+            - Consultar Orders, CT-es e containers diretamente do banco de dados
+            - Realizar buscas semânticas nos documentos
+            - Verificar saúde do sistema e métricas
+            - Analisar estatísticas de webhooks e integrações
+            - Fornecer insights baseados em dados reais do sistema
+            
+            Sempre use suas ferramentas para obter dados atualizados antes de responder.
             """,
             verbose=True,
             allow_delegation=True,
-            llm=llm
+            llm=llm_wrapper,
+            tools=admin_tools
         )
     
     async def process_request(self, user_context: Dict[str, Any], request_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -157,25 +314,42 @@ class LogisticsAgent(BaseSpecializedAgent):
     def __init__(self):
         super().__init__(AgentType.LOGISTICS)
         
+        # Use LLM Router com TaskType.LOGISTICS para tarefas logísticas
+        llm_wrapper = create_llm_router(task_type=TaskType.LOGISTICS, temperature=0.3)
+        
+        # Ferramentas específicas para LogisticsAgent
+        logistics_tools = [
+            tool_consultar_cte,
+            tool_consultar_container,
+            tool_buscar_orders,
+            tool_consultar_order,
+            tool_processar_documento,
+            tool_extrair_texto,
+            tool_busca_semantica
+        ]
+        
         self.agent = Agent(
             role="Especialista em Logística e Transporte",
-            goal="Processar documentos logísticos e fornecer insights especializados",
+            goal="Processar documentos logísticos e fornecer insights especializados usando dados reais",
             backstory="""
-            Você é um especialista em logística e transporte com vasto conhecimento em:
-            - CT-e (Conhecimento de Transporte Eletrônico)
-            - BL (Bill of Lading) - conhecimentos de embarque marítimo
-            - Rastreamento de containers e cargas
-            - Documentação de transporte multimodal
-            - ETA/ETD (previsões de chegada e saída)
-            - Status de entregas e eventos de rota
+            Você é um especialista em logística e transporte com acesso direto ao sistema
+            através de ferramentas GraphQL e OCR integradas. Suas especialidades incluem:
             
-            Sua função é analisar documentos, extrair informações relevantes,
-            fornecer insights sobre operações logísticas e ajudar operadores
-            a tomar decisões informadas sobre transporte e entrega.
+            - Consulta de CT-e (Conhecimento de Transporte Eletrônico) por número
+            - Rastreamento de containers com posições GPS em tempo real
+            - Análise de documentos via OCR (PDFs, imagens)
+            - Bill of Lading (BL) - conhecimentos de embarque marítimo  
+            - Busca semântica em documentos para encontrar informações específicas
+            - Extração de dados estruturados de documentos logísticos
+            
+            Sempre consulte o sistema real antes de responder. Use as ferramentas de OCR
+            para analisar documentos enviados pelo usuário e correlacione com dados do sistema.
+            Forneça informações precisas baseadas em dados atuais, não em suposições.
             """,
             verbose=True,
             allow_delegation=False,
-            llm=llm
+            llm=llm_wrapper,
+            tools=logistics_tools
         )
     
     async def process_request(self, user_context: Dict[str, Any], request_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -254,26 +428,41 @@ class FinanceAgent(BaseSpecializedAgent):
     def __init__(self):
         super().__init__(AgentType.FINANCE)
         
+        # Use LLM Router com TaskType.FINANCIAL para tarefas financeiras
+        llm_wrapper = create_llm_router(task_type=TaskType.FINANCIAL, temperature=0.3)
+        
+        # Ferramentas específicas para FinanceAgent
+        finance_tools = [
+            tool_buscar_orders,
+            tool_consultar_order,
+            tool_consultar_cte,
+            tool_processar_documento,
+            tool_busca_semantica
+        ]
+        
         self.agent = Agent(
             role="Especialista Financeiro em Logística",
-            goal="Processar informações financeiras e fornecer análises de custos logísticos",
+            goal="Processar informações financeiras e fornecer análises de custos baseadas em dados reais",
             backstory="""
-            Você é um especialista financeiro com foco em operações logísticas.
-            Tem experiência em:
-            - Análise de custos de transporte e frete
-            - Processamento de documentos financeiros
-            - Relatórios de pagamentos e recebimentos
-            - Análise de rentabilidade de rotas
-            - Gestão de contas a pagar e receber relacionadas à logística
-            - Compliance financeiro em transporte
+            Você é um especialista financeiro com acesso direto aos dados financeiros
+            do sistema logístico através de ferramentas GraphQL integradas.
             
-            Sua função é analisar dados financeiros, gerar relatórios,
-            fornecer insights sobre custos e ajudar na tomada de decisões
-            financeiras relacionadas às operações logísticas.
+            Suas capacidades incluem:
+            - Análise de custos de frete em CT-es reais do sistema
+            - Processamento de documentos financeiros via OCR
+            - Consulta de Orders para análise de rentabilidade
+            - Busca semântica em documentos para encontrar valores e custos
+            - Geração de relatórios financeiros baseados em dados atuais
+            - Análise de compliance financeiro em transporte
+            
+            Sempre consulte os dados reais do sistema antes de fornecer análises.
+            Use OCR para processar documentos financeiros enviados e correlacione
+            com as informações já existentes no banco de dados.
             """,
             verbose=True,
             allow_delegation=False,
-            llm=llm
+            llm=llm_wrapper,
+            tools=finance_tools
         )
     
     async def process_request(self, user_context: Dict[str, Any], request_data: Dict[str, Any]) -> Dict[str, Any]:
