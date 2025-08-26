@@ -604,8 +604,9 @@ async def download_document(file_id: str):
         if not document:
             raise HTTPException(status_code=404, detail="Documento não encontrado")
         
-        if not document.s3_key:
-            # Para documentos sintéticos sem S3, retornar mock URL
+        # Para dados sintéticos (que começam com 'synthetic/'), sempre retornar mock
+        if not document.s3_key or (document.s3_key and document.s3_key.startswith('synthetic/')):
+            # Para documentos sintéticos, retornar mock URL
             return {
                 "download_url": f"https://demo-bucket.s3.amazonaws.com/demo/{document.original_name}",
                 "filename": document.original_name,
@@ -613,7 +614,7 @@ async def download_document(file_id: str):
                 "file_type": document.file_type,
                 "expires_in": 3600,
                 "expires_at": (datetime.now() + timedelta(hours=1)).isoformat(),
-                "note": "Mock URL - Document has no S3 key (synthetic data)"
+                "note": "Mock URL - Synthetic data (demo purposes)"
             }
         
         # Verificar se as credenciais AWS estão configuradas

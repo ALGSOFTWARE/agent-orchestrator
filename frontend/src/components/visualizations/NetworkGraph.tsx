@@ -64,8 +64,22 @@ export default function NetworkGraph({ nodes, edges, height, isInModal = false }
     
     try {
       setLoading(true)
-      const documentId = node.data.id || node.data.file_id
-      const metadata = await gatekeeperClient.getRaw(`/files/${documentId}/metadata`)
+      
+      // Debug logging
+      console.log('🔍 [METADATA] Starting metadata fetch for document:')
+      console.log('🔍 [METADATA] Node data:', node.data)
+      console.log('🔍 [METADATA] node.data.id:', node.data.id)
+      console.log('🔍 [METADATA] node.data.file_id:', node.data.file_id)
+      
+      const documentId = node.data.file_id || node.data.id  // Prefer file_id over id
+      console.log('🔍 [METADATA] Using documentId:', documentId)
+      console.log('🔍 [METADATA] Gatekeeper base URL:', gatekeeperClient.getBaseURL())
+      
+      const fullUrl = `/files/${documentId}/metadata`
+      console.log('🔍 [METADATA] Making request to:', fullUrl)
+      
+      const metadata = await gatekeeperClient.getRaw(fullUrl)
+      console.log('✅ [METADATA] Metadata received:', metadata)
       
       // Criar uma janela modal mais robusta
       const newWindow = window.open('', '_blank', 'width=1000,height=700,scrollbars=yes,resizable=yes')
@@ -303,8 +317,22 @@ export default function NetworkGraph({ nodes, edges, height, isInModal = false }
     
     try {
       setLoading(true)
-      const documentId = node.data.id || node.data.file_id
-      const downloadInfo = await gatekeeperClient.getRaw(`/files/${documentId}/download`)
+      
+      // Debug logging
+      console.log('💾 [DOWNLOAD] Starting download for document:')
+      console.log('💾 [DOWNLOAD] Node data:', node.data)
+      console.log('💾 [DOWNLOAD] node.data.id:', node.data.id)
+      console.log('💾 [DOWNLOAD] node.data.file_id:', node.data.file_id)
+      
+      const documentId = node.data.file_id || node.data.id  // Prefer file_id over id
+      console.log('💾 [DOWNLOAD] Using documentId:', documentId)
+      console.log('💾 [DOWNLOAD] Gatekeeper base URL:', gatekeeperClient.getBaseURL())
+      
+      const fullUrl = `/files/${documentId}/download`
+      console.log('💾 [DOWNLOAD] Making request to:', fullUrl)
+      
+      const downloadInfo = await gatekeeperClient.getRaw(fullUrl)
+      console.log('✅ [DOWNLOAD] Download info received:', downloadInfo)
       
       // Criar link temporário para download
       const link = document.createElement('a')
