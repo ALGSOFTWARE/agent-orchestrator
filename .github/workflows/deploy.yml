@@ -41,12 +41,27 @@ jobs:
     - name: Run tests
       run: |
         cd gatekeeper-api
-        # Verificar se existem testes pytest
-        if find . -name "test_*.py" -exec grep -l "def test_" {} \; | head -1; then
+        # Verificar se existem testes pytest válidos (arquivos test_*.py com funções def test_*)
+        PYTEST_FILES=$(find . -name "test_*.py" 2>/dev/null | xargs grep -l "def test_" 2>/dev/null || true)
+        
+        if [ -n "$PYTEST_FILES" ]; then
+          echo "📋 Encontrados testes pytest, executando..."
           python -m pytest -v
         else
           echo "⚠️  Nenhum teste pytest encontrado, executando verificação básica..."
-          python -c "import sys; sys.path.append('.'); from app.main import app; print('✅ Importação da aplicação bem-sucedida'); from app.models import User, Order, DocumentFile; print('✅ Modelos importados com sucesso'); print('✅ Verificação básica concluída')"
+          python -c "
+import sys
+sys.path.append('.')
+try:
+    from app.main import app
+    print('✅ Importação da aplicação bem-sucedida')
+    from app.models import User, Order, DocumentFile
+    print('✅ Modelos importados com sucesso')
+    print('✅ Verificação básica concluída')
+except Exception as e:
+    print(f'❌ Erro na verificação: {e}')
+    sys.exit(1)
+          "
         fi
 
   deploy-staging:
