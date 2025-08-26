@@ -285,3 +285,157 @@ async def get_orders_stats():
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao gerar estatísticas: {str(e)}")
+
+# === ENDPOINTS ADMINISTRATIVOS === #
+
+@router.post("/admin/fix-document-links")
+async def fix_document_links():
+    """
+    Endpoint administrativo para corrigir Links entre Orders e DocumentFiles
+    
+    Problema: Orders têm document_count correto mas document_files array vazio
+    Solução: Buscar DocumentFiles por order_id e criar Links corretos
+    """
+    try:
+        from beanie import Link
+        
+        print("🔧 Iniciando correção de links Orders ↔ DocumentFiles...")
+        
+        # Contadores
+        orders_fixed = 0
+        links_created = 0
+        errors = []
+        
+        # Encontrar Orders com problema (document_count > 0 mas document_files vazio)
+        problematic_orders = []
+        async for order in Order.find(Order.document_count > 0):
+            if len(order.document_files) == 0:
+                # Verificar se realmente existem documentos
+                doc_count = await DocumentFile.find(DocumentFile.order_id == order.order_id).count()
+                if doc_count > 0:
+                    problematic_orders.append(order)
+        
+        if not problematic_orders:
+            return {
+                "message": "✅ Nenhuma Order com problema encontrada",
+                "orders_analyzed": await Order.find(Order.document_count > 0).count(),
+                "orders_fixed": 0,
+                "links_created": 0
+            }
+        
+        print(f"📊 Encontradas {len(problematic_orders)} Orders para corrigir...")
+        
+        # Corrigir cada Order
+        for order in problematic_orders:
+            try:
+                # Buscar DocumentFiles vinculados
+                documents = await DocumentFile.find(DocumentFile.order_id == order.order_id).to_list()
+                
+                if not documents:
+                    errors.append(f"Order {order.order_id}: Nenhum documento encontrado")
+                    continue
+                
+                # Criar Links para cada documento
+                new_links = []
+                for doc in documents:
+                    link = Link(doc.id, DocumentFile)
+                    new_links.append(link)
+                
+                # Atualizar a Order
+                order.document_files = new_links
+                order.updated_at = datetime.utcnow()
+                order.last_activity = datetime.utcnow()
+                
+                # Corrigir document_count se necessário
+                if order.document_count != len(documents):
+                    order.document_count = len(documents)
+                
+                # Salvar
+                await order.save()
+                
+                orders_fixed += 1
+                links_created += len(new_links)
+                
+                print(f"✅ Order {order.order_id}: {len(new_links)} links criados")
+                
+            except Exception as e:
+                error_msg = f"Order {order.order_id}: {str(e)}"
+                errors.append(error_msg)
+                print(f"❌ {error_msg}")
+        
+        # Validar correção
+        remaining_problems = 0
+        async for order in Order.find(Order.document_count > 0):
+            if len(order.document_files) == 0:
+                doc_count = await DocumentFile.find(DocumentFile.order_id == order.order_id).count()
+                if doc_count > 0:
+                    remaining_problems += 1
+        
+        result = {
+            "message": "🛠️  Correção de links concluída",
+            "orders_analyzed": len(problematic_orders),
+            "orders_fixed": orders_fixed,
+            "links_created": links_created,
+            "remaining_problems": remaining_problems,
+            "errors": errors[:5],  # Mostrar apenas primeiros 5 erros
+            "validation": "✅ Sucesso" if remaining_problems == 0 else f"⚠️  {remaining_problems} Orders ainda com problema",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        print(f"📊 Resultado final: {orders_fixed} Orders corrigidas, {links_created} links criados")
+        
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro na correção de links: {str(e)}")
+
+@router.get("/admin/diagnose-links")
+async def diagnose_document_links():
+    """
+    Endpoint para diagnosticar problemas de links entre Orders e DocumentFiles
+    """
+    try:
+        # Estatísticas gerais
+        total_orders = await Order.count()
+        orders_with_count = await Order.find(Order.document_count > 0).count()
+        total_documents = await DocumentFile.count()
+        
+        # Encontrar problemas
+        problems = []
+        orders_ok = 0
+        
+        async for order in Order.find(Order.document_count > 0).limit(20):  # Analisar 20 primeiras
+            doc_count_field = order.document_count
+            doc_files_length = len(order.document_files)
+            actual_docs = await DocumentFile.find(DocumentFile.order_id == order.order_id).count()
+            
+            if doc_files_length != actual_docs:
+                problems.append({
+                    "order_id": order.order_id,
+                    "title": order.title[:50] + "..." if len(order.title) > 50 else order.title,
+                    "customer": order.customer_name,
+                    "document_count_field": doc_count_field,
+                    "document_files_length": doc_files_length,
+                    "actual_documents": actual_docs,
+                    "status": "INCONSISTENT" if doc_files_length == 0 and actual_docs > 0 else "MISMATCH"
+                })
+            else:
+                orders_ok += 1
+        
+        return {
+            "diagnosis": "📊 Diagnóstico Links Orders ↔ DocumentFiles",
+            "statistics": {
+                "total_orders": total_orders,
+                "orders_with_documents": orders_with_count,
+                "total_documents": total_documents,
+                "orders_analyzed": min(20, orders_with_count),
+                "orders_ok": orders_ok,
+                "orders_with_problems": len(problems)
+            },
+            "problems": problems,
+            "recommendation": "Use POST /orders/admin/fix-document-links para corrigir" if problems else "✅ Sistema funcionando corretamente",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro no diagnóstico: {str(e)}")

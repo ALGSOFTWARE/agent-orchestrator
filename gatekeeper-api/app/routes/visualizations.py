@@ -60,6 +60,7 @@ async def get_order_documents_graph(
                     "label": doc.original_name,
                     "data": {
                         "id": str(doc.id),
+                        "file_id": doc.file_id,  # ← Adicionar file_id que o frontend precisa
                         "filename": doc.original_name,
                         "file_type": doc.file_type,
                         "category": doc.category,
@@ -105,6 +106,7 @@ async def get_order_documents_graph(
                         "label": doc.original_name,
                         "data": {
                             "id": str(doc.id),
+                            "file_id": doc.file_id,  # ← Adicionar file_id aqui também
                             "filename": doc.original_name,
                             "file_type": doc.file_type,
                             "category": doc.category,
@@ -173,6 +175,7 @@ async def get_documents_semantic_map(
                     "order_id": str(doc.order_id) if doc.order_id else None,
                     "data": {
                         "id": str(doc.id),
+                        "file_id": doc.file_id,  # ← Adicionar file_id no mapa semântico também
                         "filename": doc.original_name,
                         "file_type": doc.file_type,
                         "category": doc.category,
@@ -283,6 +286,8 @@ async def get_similar_documents_visual(
                 "label": doc.original_name,
                 "type": "document",
                 "data": {
+                    "id": str(doc.id),
+                    "file_id": doc.file_id,  # ← Adicionar file_id na busca semântica também
                     "similarity": similarity,
                     "extracted_text_preview": doc.text_content[:200] if doc.text_content else None,
                     "category": doc.category,

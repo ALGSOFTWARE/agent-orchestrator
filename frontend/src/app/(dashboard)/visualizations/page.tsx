@@ -103,6 +103,14 @@ export default function VisualizationsPage() {
       console.log('📊 [GRAPH] Nodes:', response?.nodes?.length || 0)
       console.log('📊 [GRAPH] Edges:', response?.edges?.length || 0)
       
+      // Debug: log first document node data
+      const docNodes = response?.nodes?.filter((n: any) => n.type === 'document') || []
+      if (docNodes.length > 0) {
+        console.log('📄 [GRAPH] First document node:', docNodes[0])
+        console.log('📄 [GRAPH] First document data:', docNodes[0]?.data)
+        console.log('📄 [GRAPH] Has file_id?', !!docNodes[0]?.data?.file_id)
+      }
+      
       setGraphData(response)
     } catch (error) {
       console.error('❌ [GRAPH] Erro ao carregar dados do grafo:', error)
