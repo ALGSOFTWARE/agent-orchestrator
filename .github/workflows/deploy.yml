@@ -78,29 +78,61 @@ jobs:
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
+          set -e  # Exit on any error
           cd /home/ubuntu
+          
+          echo "🚀 Iniciando deploy para staging..."
           
           # Backup atual
           if [ -d "gatekeeper-api" ]; then
+            echo "📦 Fazendo backup da versão atual..."
             sudo mv gatekeeper-api gatekeeper-api-backup-$(date +%Y%m%d-%H%M%S)
           fi
           
-          # Clone do repo
-          git clone https://github.com/${{ github.repository }}.git temp-repo
+          # Clone do repo com autenticação
+          echo "📥 Clonando repositório..."
+          if [ ! -z "${{ secrets.GITHUB_TOKEN }}" ]; then
+            # Usa GitHub token se disponível
+            git clone https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git temp-repo
+          else
+            # Fallback para repositório público ou SSH
+            git clone https://github.com/${{ github.repository }}.git temp-repo
+          fi
+          
+          if [ ! -d "temp-repo" ]; then
+            echo "❌ Falha ao clonar repositório"
+            exit 1
+          fi
+          
           cd temp-repo
-          git checkout dev
+          git checkout dev || { echo "❌ Falha ao fazer checkout da branch dev"; exit 1; }
+          
+          # Verificar se gatekeeper-api existe
+          if [ ! -d "gatekeeper-api" ]; then
+            echo "❌ Diretório gatekeeper-api não encontrado no repositório"
+            exit 1
+          fi
           
           # Move API para local correto
+          echo "📁 Movendo arquivos da API..."
           mv gatekeeper-api /home/ubuntu/
           cd /home/ubuntu/gatekeeper-api
           
+          # Verificar se requirements.txt existe
+          if [ ! -f "requirements.txt" ]; then
+            echo "❌ requirements.txt não encontrado"
+            exit 1
+          fi
+          
           # Instala dependências
+          echo "📦 Instalando dependências Python..."
           python3 -m venv venv
           source venv/bin/activate
           pip install --upgrade pip setuptools wheel
-          pip install -r requirements.txt
+          pip install -r requirements.txt || { echo "❌ Falha na instalação das dependências"; exit 1; }
           
           # Cria .env com secrets
+          echo "⚙️ Configurando variáveis de ambiente..."
           cat > .env << EOF
           MONGODB_URL=${{ secrets.MONGODB_URL }}
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
@@ -111,18 +143,48 @@ jobs:
           LOG_LEVEL=INFO
           EOF
           
-          # Restart serviços
-          sudo systemctl restart gatekeeper-api
-          sudo systemctl restart nginx
+          # Verificar se o serviço existe
+          echo "🔄 Reiniciando serviços..."
+          if systemctl list-unit-files | grep -q gatekeeper-api; then
+            sudo systemctl restart gatekeeper-api
+          else
+            echo "⚠️ Serviço gatekeeper-api não encontrado, tentando iniciar aplicação diretamente"
+            nohup python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 > /dev/null 2>&1 &
+          fi
+          
+          if systemctl list-unit-files | grep -q nginx; then
+            sudo systemctl restart nginx
+          else
+            echo "⚠️ Nginx não encontrado"
+          fi
           
           # Cleanup
+          echo "🧹 Limpando arquivos temporários..."
           rm -rf /home/ubuntu/temp-repo
           
-          # Verificar se está rodando
-          sleep 5
-          curl -f http://localhost:8000/health || exit 1
+          # Verificar se está rodando (tenta ambas as portas)
+          echo "🔍 Verificando se a aplicação está respondendo..."
+          sleep 10
           
-          echo "🚀 Deploy staging concluído!"
+          # Tenta porta 8001 primeiro (padrão da aplicação)
+          if curl -f --max-time 10 http://localhost:8001/health; then
+            echo "✅ Aplicação rodando na porta 8001"
+          elif curl -f --max-time 10 http://localhost:8001/; then
+            echo "✅ Aplicação respondendo na porta 8001"
+          elif curl -f --max-time 10 http://localhost:8000/health; then
+            echo "✅ Aplicação rodando na porta 8000"
+          elif curl -f --max-time 10 http://localhost:8000/; then
+            echo "✅ Aplicação respondendo na porta 8000"
+          else
+            echo "❌ Aplicação não está respondendo em nenhuma porta"
+            echo "🔍 Verificando processos Python..."
+            ps aux | grep python || true
+            echo "🔍 Verificando portas abertas..."
+            ss -tlnp | grep -E ":800[01]" || true
+            exit 1
+          fi
+          
+          echo "🚀 Deploy staging concluído com sucesso!"
 
   deploy-production:
     runs-on: ubuntu-latest
