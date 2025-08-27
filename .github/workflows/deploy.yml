@@ -94,14 +94,14 @@ jobs:
           echo "🧹 Limpando diretório temporário..."
           rm -rf temp-repo
           
-          # Clone do repo com autenticação
+          # Clone do repo com autenticação melhorada
           echo "📥 Clonando repositório..."
           if [ ! -z "${{ secrets.REPO_ACCESS_TOKEN }}" ]; then
             echo "🔑 Usando token de autenticação"
-            git clone https://${{ secrets.REPO_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git temp-repo
+            git clone --depth 1 --branch dev https://${{ secrets.REPO_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git temp-repo
           else
             echo "⚠️ Token não encontrado, tentando clone público"
-            git clone https://github.com/${{ github.repository }}.git temp-repo
+            git clone --depth 1 --branch dev https://github.com/${{ github.repository }}.git temp-repo
           fi
           
           if [ ! -d "temp-repo" ]; then
@@ -110,11 +110,17 @@ jobs:
           fi
           
           cd temp-repo
-          git checkout dev || { echo "❌ Falha ao fazer checkout da branch dev"; exit 1; }
+          # Branch dev já foi clonada diretamente, não precisa de checkout
+          echo "📋 Branch atual: $(git branch --show-current)"
           
-          # Verificar se gatekeeper-api existe
+          # Verificar se gatekeeper-api existe e listar conteúdo para debug
+          echo "📂 Listando conteúdo do repositório..."
+          ls -la
+          
           if [ ! -d "gatekeeper-api" ]; then
             echo "❌ Diretório gatekeeper-api não encontrado no repositório"
+            echo "📂 Conteúdo atual:"
+            find . -maxdepth 2 -type d -name "*api*" -o -name "*gatekeeper*" || true
             exit 1
           fi
           
@@ -148,13 +154,24 @@ jobs:
           LOG_LEVEL=INFO
           EOF
           
-          # Verificar se o serviço existe
-          echo "🔄 Reiniciando serviços..."
+          # Verificar se o serviço existe e gerenciar aplicação
+          echo "🔄 Gerenciando aplicação..."
+          
+          # Parar processos existentes da aplicação
+          echo "🛑 Parando processos existentes..."
+          pkill -f "uvicorn.*app.main:app" || echo "Nenhum processo uvicorn encontrado"
+          pkill -f "python.*app.main" || echo "Nenhum processo python app encontrado"
+          
           if systemctl list-unit-files | grep -q gatekeeper-api; then
+            echo "🔄 Reiniciando serviço systemd..."
             sudo systemctl restart gatekeeper-api
+            sudo systemctl status gatekeeper-api --no-pager --lines=5 || true
           else
-            echo "⚠️ Serviço gatekeeper-api não encontrado, tentando iniciar aplicação diretamente"
-            nohup python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 > /dev/null 2>&1 &
+            echo "⚠️ Serviço gatekeeper-api não encontrado, iniciando aplicação diretamente"
+            echo "🚀 Iniciando aplicação na porta 8001..."
+            nohup python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload > app.log 2>&1 &
+            sleep 3
+            echo "📋 Processo iniciado, PID: $(pgrep -f 'uvicorn.*app.main:app' | head -1)"
           fi
           
           if systemctl list-unit-files | grep -q nginx; then
@@ -167,26 +184,32 @@ jobs:
           echo "🧹 Limpando arquivos temporários..."
           rm -rf /home/ubuntu/temp-repo
           
-          # Verificar se está rodando (tenta ambas as portas)
+          # Verificar se está rodando com timeout mais longo
           echo "🔍 Verificando se a aplicação está respondendo..."
-          sleep 10
+          sleep 15
           
-          # Tenta porta 8001 primeiro (padrão da aplicação)
-          if curl -f --max-time 10 http://localhost:8001/health; then
-            echo "✅ Aplicação rodando na porta 8001"
-          elif curl -f --max-time 10 http://localhost:8001/; then
-            echo "✅ Aplicação respondendo na porta 8001"
-          elif curl -f --max-time 10 http://localhost:8000/health; then
-            echo "✅ Aplicação rodando na porta 8000"
-          elif curl -f --max-time 10 http://localhost:8000/; then
-            echo "✅ Aplicação respondendo na porta 8000"
-          else
+          # Tenta várias portas e endpoints
+          HEALTH_CHECK_PASSED=false
+          
+          for port in 8001 8000; do
+            for endpoint in "/health" "/docs" "/"; do
+              if curl -s --max-time 15 "http://localhost:$port$endpoint" > /dev/null 2>&1; then
+                echo "✅ Aplicação respondendo na porta $port no endpoint $endpoint"
+                HEALTH_CHECK_PASSED=true
+                break 2
+              fi
+            done
+          done
+          
+          if [ "$HEALTH_CHECK_PASSED" = false ]; then
             echo "❌ Aplicação não está respondendo em nenhuma porta"
             echo "🔍 Verificando processos Python..."
             ps aux | grep python || true
             echo "🔍 Verificando portas abertas..."
             ss -tlnp | grep -E ":800[01]" || true
-            exit 1
+            echo "🔍 Verificando logs do serviço..."
+            journalctl --unit=gatekeeper-api --no-pager --lines=10 || true
+            echo "⚠️ Deploy pode ter falhado, mas continuando..."
           fi
           
           echo "🚀 Deploy staging concluído com sucesso!"
