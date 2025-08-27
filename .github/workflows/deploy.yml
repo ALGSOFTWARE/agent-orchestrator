@@ -91,9 +91,9 @@ jobs:
           
           # Clone do repo com autenticação
           echo "📥 Clonando repositório..."
-          if [ ! -z "${{ secrets.GITHUB_TOKEN }}" ]; then
+          if [ ! -z "${{ secrets.REPO_ACCESS_TOKEN }}" ]; then
             # Usa GitHub token se disponível
-            git clone https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git temp-repo
+            git clone https://${{ secrets.REPO_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git temp-repo
           else
             # Fallback para repositório público ou SSH
             git clone https://github.com/${{ github.repository }}.git temp-repo
