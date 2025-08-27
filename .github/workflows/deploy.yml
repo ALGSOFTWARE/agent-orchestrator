@@ -90,6 +90,10 @@ jobs:
             sudo mv gatekeeper-api gatekeeper-api-backup-$(date +%Y%m%d-%H%M%S)
           fi
           
+          # Limpar diretório temporário se existir
+          echo "🧹 Limpando diretório temporário..."
+          rm -rf temp-repo
+          
           # Clone do repo com autenticação
           echo "📥 Clonando repositório..."
           if [ ! -z "${{ secrets.REPO_ACCESS_TOKEN }}" ]; then
