@@ -107,54 +107,64 @@ jobs:
           echo "📊 Espaço após limpeza:"
           df -h /
           
-          # Backup atual
-          if [ -d "gatekeeper-api" ]; then
-            echo "📦 Fazendo backup da versão atual..."
-            sudo mv gatekeeper-api gatekeeper-api-backup-$(date +%Y%m%d-%H%M%S)
-          fi
+          # Nota: Não fazemos backup pois usamos git para rollback automático
           
-          # Limpar diretório temporário se existir
-          echo "🧹 Limpando diretório temporário..."
-          rm -rf temp-repo
-          
-          # Clone otimizado - configurar sparse checkout ANTES do clone
-          echo "📥 Clonando repositório (apenas gatekeeper-api)..."
-          mkdir temp-repo
-          cd temp-repo
-          git init
-          
-          if [ ! -z "${{ secrets.REPO_ACCESS_TOKEN }}" ]; then
-            echo "🔑 Usando token de autenticação"
-            git remote add origin https://${{ secrets.REPO_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git
-          else
-            echo "⚠️ Token não encontrado, tentando clone público"
-            git remote add origin https://github.com/${{ github.repository }}.git
-          fi
-          
-          echo "📂 Configurando sparse-checkout para apenas gatekeeper-api..."
-          git config core.sparseCheckout true
-          echo "gatekeeper-api/*" > .git/info/sparse-checkout
-          
-          echo "📥 Fazendo pull otimizado..."
-          git pull --depth=1 origin dev
-          
-          # Branch dev já foi clonada diretamente, não precisa de checkout
-          echo "📋 Branch atual: $(git branch --show-current)"
-          
-          # Verificar se gatekeeper-api existe e listar conteúdo para debug
-          echo "📂 Listando conteúdo do repositório..."
-          ls -la
+          # Deploy incremental - reutilizar código existente quando possível
+          echo "📥 Atualizando código da aplicação..."
           
           if [ ! -d "gatekeeper-api" ]; then
-            echo "❌ Diretório gatekeeper-api não encontrado no repositório"
-            echo "📂 Conteúdo atual:"
-            find . -maxdepth 2 -type d -name "*api*" -o -name "*gatekeeper*" || true
-            exit 1
+            echo "🆕 Primeira instalação - clonando repositório..."
+            mkdir temp-repo && cd temp-repo
+            git init
+            
+            if [ ! -z "${{ secrets.REPO_ACCESS_TOKEN }}" ]; then
+              git remote add origin https://${{ secrets.REPO_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git
+            else
+              git remote add origin https://github.com/${{ github.repository }}.git
+            fi
+            
+            git config core.sparseCheckout true
+            echo "gatekeeper-api/*" > .git/info/sparse-checkout
+            git pull --depth=1 origin dev
+            mv gatekeeper-api /home/ubuntu/
+            cd /home/ubuntu && rm -rf temp-repo
+          else
+            echo "🔄 Atualizando código existente..."
+            cd gatekeeper-api
+            
+            # Salvar hash atual do requirements.txt
+            OLD_REQ_HASH=""
+            if [ -f "requirements.txt" ]; then
+              OLD_REQ_HASH=$(md5sum requirements.txt | cut -d' ' -f1)
+            fi
+            
+            # Fazer backup do .env
+            cp .env .env.backup 2>/dev/null || true
+            
+            # Atualizar código via git pull
+            if [ ! -d ".git" ]; then
+              echo "🔧 Inicializando git no diretório existente..."
+              git init
+              if [ ! -z "${{ secrets.REPO_ACCESS_TOKEN }}" ]; then
+                git remote add origin https://${{ secrets.REPO_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git
+              else
+                git remote add origin https://github.com/${{ github.repository }}.git
+              fi
+              git config core.sparseCheckout true
+              echo "gatekeeper-api/*" > .git/info/sparse-checkout
+            fi
+            
+            git fetch origin dev
+            git reset --hard origin/dev
+            
+            # Restaurar .env se foi perdido
+            if [ ! -f ".env" ] && [ -f ".env.backup" ]; then
+              mv .env.backup .env
+            else
+              rm -f .env.backup
+            fi
           fi
           
-          # Move API para local correto
-          echo "📁 Movendo arquivos da API..."
-          mv gatekeeper-api /home/ubuntu/
           cd /home/ubuntu/gatekeeper-api
           
           # Verificar se requirements.txt existe
@@ -163,50 +173,61 @@ jobs:
             exit 1
           fi
           
-          # Instala dependências com melhor controle de erro
-          echo "📦 Instalando dependências Python..."
+          # Gerenciamento inteligente de dependências
+          echo "📦 Gerenciando dependências Python..."
           
-          # Remove venv antigo se existir
-          echo "🗑️ Removendo ambiente virtual antigo..."
-          rm -rf venv
+          # Verificar se requirements.txt mudou
+          NEW_REQ_HASH=""
+          NEED_INSTALL=true
           
-          # Verificar espaço antes da instalação
-          echo "📊 Espaço disponível antes da instalação:"
-          df -h /
-          
-          # Verifica se python3 está disponível
-          which python3 || { echo "❌ Python3 não encontrado"; exit 1; }
-          
-          # Cria novo ambiente virtual
-          echo "🔧 Criando ambiente virtual..."
-          python3 -m venv venv || { echo "❌ Falha ao criar venv"; exit 1; }
-          
-          # Verifica se o venv foi criado corretamente
-          if [ ! -f "venv/bin/activate" ]; then
-            echo "❌ venv/bin/activate não encontrado"
-            exit 1
+          if [ -f "requirements.txt" ]; then
+            NEW_REQ_HASH=$(md5sum requirements.txt | cut -d' ' -f1)
+            echo "📋 Hash requirements.txt: $NEW_REQ_HASH"
+            
+            if [ "$OLD_REQ_HASH" = "$NEW_REQ_HASH" ] && [ -d "venv" ] && [ -f "venv/bin/activate" ]; then
+              echo "✅ Requirements não mudaram e venv existe - pulando reinstalação"
+              NEED_INSTALL=false
+            else
+              echo "🔄 Requirements mudaram ou venv não existe - atualizando dependências"
+            fi
           fi
           
-          # Ativa ambiente virtual
-          echo "🔧 Ativando ambiente virtual..."
-          source venv/bin/activate || { echo "❌ Falha ao ativar venv"; exit 1; }
-          
-          # Verifica pip
-          which pip || { echo "❌ pip não encontrado no venv"; exit 1; }
-          
-          # Instala dependências
-          echo "📦 Atualizando pip..."
-          pip install --upgrade pip setuptools wheel || { echo "❌ Falha ao atualizar pip"; exit 1; }
-          
-          echo "📦 Instalando requirements.txt..."
-          pip install --no-cache-dir -r requirements.txt || { 
-            echo "❌ Falha na instalação das dependências"
-            echo "📊 Espaço atual:"
+          # Criar ou atualizar ambiente virtual apenas se necessário
+          if [ "$NEED_INSTALL" = true ]; then
+            echo "📊 Espaço disponível antes da instalação:"
             df -h /
-            echo "🔍 Últimos erros do pip:"
-            tail -20 ~/.cache/pip/log/* 2>/dev/null || echo "Nenhum log do pip encontrado"
-            exit 1
-          }
+            
+            # Verifica python3
+            which python3 || { echo "❌ Python3 não encontrado"; exit 1; }
+            
+            # Criar venv se não existir
+            if [ ! -d "venv" ]; then
+              echo "🔧 Criando novo ambiente virtual..."
+              python3 -m venv venv || { echo "❌ Falha ao criar venv"; exit 1; }
+            else
+              echo "♻️ Reutilizando ambiente virtual existente..."
+            fi
+            
+            # Ativar ambiente virtual
+            source venv/bin/activate || { echo "❌ Falha ao ativar venv"; exit 1; }
+            
+            # Atualizar pip se necessário
+            pip install --upgrade pip setuptools wheel || { echo "❌ Falha ao atualizar pip"; exit 1; }
+            
+            # Instalar/atualizar dependências
+            echo "📦 Instalando/atualizando dependências..."
+            pip install -r requirements.txt || { 
+              echo "❌ Falha na instalação das dependências"
+              df -h /
+              exit 1
+            }
+            
+            echo "✅ Dependências atualizadas com sucesso"
+          else
+            # Apenas ativar o venv existente
+            echo "🔧 Ativando ambiente virtual existente..."
+            source venv/bin/activate || { echo "❌ Falha ao ativar venv"; exit 1; }
+          fi
           
           # Cria .env com secrets
           echo "⚙️ Configurando variáveis de ambiente..."
