@@ -159,3 +159,5 @@ temp/
 # Test artifacts
 test-results/
 playwright-report/
+# Documentação gerada automaticamente
+documentacao_final.pdf
