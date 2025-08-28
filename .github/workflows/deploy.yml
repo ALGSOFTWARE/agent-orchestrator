@@ -94,22 +94,21 @@ jobs:
           echo "🧹 Limpando diretório temporário..."
           rm -rf temp-repo
           
-          # Clone do repo com autenticação melhorada
-          echo "📥 Clonando repositório..."
+          # Clone otimizado - apenas gatekeeper-api
+          echo "📥 Clonando repositório (apenas gatekeeper-api)..."
           if [ ! -z "${{ secrets.REPO_ACCESS_TOKEN }}" ]; then
             echo "🔑 Usando token de autenticação"
-            git clone --depth 1 --branch dev https://${{ secrets.REPO_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git temp-repo
+            git clone --depth 1 --branch dev --filter=blob:none --sparse-checkout https://${{ secrets.REPO_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git temp-repo
           else
             echo "⚠️ Token não encontrado, tentando clone público"
-            git clone --depth 1 --branch dev https://github.com/${{ github.repository }}.git temp-repo
-          fi
-          
-          if [ ! -d "temp-repo" ]; then
-            echo "❌ Falha ao clonar repositório"
-            exit 1
+            git clone --depth 1 --branch dev --filter=blob:none --sparse-checkout https://github.com/${{ github.repository }}.git temp-repo
           fi
           
           cd temp-repo
+          echo "📂 Configurando sparse-checkout para apenas gatekeeper-api..."
+          git sparse-checkout set gatekeeper-api
+          git read-tree -u HEAD
+          
           # Branch dev já foi clonada diretamente, não precisa de checkout
           echo "📋 Branch atual: $(git branch --show-current)"
           
@@ -157,10 +156,11 @@ jobs:
           # Verificar se o serviço existe e gerenciar aplicação
           echo "🔄 Gerenciando aplicação..."
           
-          # Parar processos existentes da aplicação
+          # Parar processos existentes da aplicação com timeout
           echo "🛑 Parando processos existentes..."
-          pkill -f "uvicorn.*app.main:app" || echo "Nenhum processo uvicorn encontrado"
-          pkill -f "python.*app.main" || echo "Nenhum processo python app encontrado"
+          timeout 10 pkill -f "uvicorn.*app.main:app" || echo "Nenhum processo uvicorn encontrado"
+          timeout 10 pkill -f "python.*app.main" || echo "Nenhum processo python app encontrado"
+          sleep 2
           
           if systemctl list-unit-files | grep -q gatekeeper-api; then
             echo "🔄 Reiniciando serviço systemd..."
@@ -169,9 +169,20 @@ jobs:
           else
             echo "⚠️ Serviço gatekeeper-api não encontrado, iniciando aplicação diretamente"
             echo "🚀 Iniciando aplicação na porta 8001..."
-            nohup python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload > app.log 2>&1 &
-            sleep 3
-            echo "📋 Processo iniciado, PID: $(pgrep -f 'uvicorn.*app.main:app' | head -1)"
+            
+            # Ativar ambiente virtual antes de iniciar
+            source venv/bin/activate
+            nohup python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 > app.log 2>&1 &
+            sleep 5
+            
+            PID=$(pgrep -f 'uvicorn.*app.main:app' | head -1)
+            if [ ! -z "$PID" ]; then
+              echo "📋 Processo iniciado com sucesso, PID: $PID"
+            else
+              echo "⚠️ Não foi possível encontrar o processo iniciado"
+              echo "📋 Últimas linhas do log:"
+              tail -10 app.log || echo "Log não encontrado"
+            fi
           fi
           
           if systemctl list-unit-files | grep -q nginx; then
