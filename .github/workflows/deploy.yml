@@ -78,8 +78,8 @@ jobs:
         host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_SSH_KEY }}
+        command_timeout: 15m
         script: |
-          set -e  # Exit on any error
           cd /home/ubuntu
           
           echo "🚀 Iniciando deploy para staging..."
@@ -252,10 +252,13 @@ jobs:
             ss -tlnp | grep -E ":800[01]" || true
             echo "🔍 Verificando logs do serviço..."
             journalctl --unit=gatekeeper-api --no-pager --lines=10 || true
-            echo "⚠️ Deploy pode ter falhado, mas continuando..."
+            echo "🔍 Verificando logs da aplicação..."
+            tail -20 app.log 2>/dev/null || echo "Arquivo app.log não encontrado"
+            echo "⚠️ Health check falhou, mas deploy concluído"
+            exit 1
           fi
           
-          echo "🚀 Deploy staging concluído com sucesso!"
+          echo "🎉 Deploy staging concluído com sucesso!"
 
   deploy-production:
     runs-on: ubuntu-latest
