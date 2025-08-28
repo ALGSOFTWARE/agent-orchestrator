@@ -94,20 +94,26 @@ jobs:
           echo "🧹 Limpando diretório temporário..."
           rm -rf temp-repo
           
-          # Clone otimizado - apenas gatekeeper-api
+          # Clone otimizado - configurar sparse checkout ANTES do clone
           echo "📥 Clonando repositório (apenas gatekeeper-api)..."
+          mkdir temp-repo
+          cd temp-repo
+          git init
+          
           if [ ! -z "${{ secrets.REPO_ACCESS_TOKEN }}" ]; then
             echo "🔑 Usando token de autenticação"
-            git clone --depth 1 --branch dev --filter=blob:none --sparse-checkout https://${{ secrets.REPO_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git temp-repo
+            git remote add origin https://${{ secrets.REPO_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git
           else
             echo "⚠️ Token não encontrado, tentando clone público"
-            git clone --depth 1 --branch dev --filter=blob:none --sparse-checkout https://github.com/${{ github.repository }}.git temp-repo
+            git remote add origin https://github.com/${{ github.repository }}.git
           fi
           
-          cd temp-repo
           echo "📂 Configurando sparse-checkout para apenas gatekeeper-api..."
-          git sparse-checkout set gatekeeper-api
-          git read-tree -u HEAD
+          git config core.sparseCheckout true
+          echo "gatekeeper-api/*" > .git/info/sparse-checkout
+          
+          echo "📥 Fazendo pull otimizado..."
+          git pull --depth=1 origin dev
           
           # Branch dev já foi clonada diretamente, não precisa de checkout
           echo "📋 Branch atual: $(git branch --show-current)"
