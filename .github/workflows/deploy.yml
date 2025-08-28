@@ -84,6 +84,29 @@ jobs:
           
           echo "🚀 Iniciando deploy para staging..."
           
+          # Verificar espaço em disco e limpar se necessário
+          echo "🔍 Verificando espaço em disco..."
+          df -h /
+          
+          echo "🧹 Limpando arquivos antigos e cache..."
+          # Limpar backups antigos (manter apenas os 3 mais recentes)
+          find . -maxdepth 1 -name "gatekeeper-api-backup-*" -type d | sort -r | tail -n +4 | xargs -r rm -rf
+          
+          # Limpar cache do pip e apt
+          rm -rf ~/.cache/pip/* 2>/dev/null || true
+          sudo apt-get clean 2>/dev/null || true
+          sudo apt-get autoclean 2>/dev/null || true
+          
+          # Limpar logs antigos
+          sudo journalctl --vacuum-time=7d 2>/dev/null || true
+          
+          # Limpar arquivos temporários
+          sudo rm -rf /tmp/* 2>/dev/null || true
+          sudo rm -rf /var/tmp/* 2>/dev/null || true
+          
+          echo "📊 Espaço após limpeza:"
+          df -h /
+          
           # Backup atual
           if [ -d "gatekeeper-api" ]; then
             echo "📦 Fazendo backup da versão atual..."
@@ -144,7 +167,12 @@ jobs:
           echo "📦 Instalando dependências Python..."
           
           # Remove venv antigo se existir
+          echo "🗑️ Removendo ambiente virtual antigo..."
           rm -rf venv
+          
+          # Verificar espaço antes da instalação
+          echo "📊 Espaço disponível antes da instalação:"
+          df -h /
           
           # Verifica se python3 está disponível
           which python3 || { echo "❌ Python3 não encontrado"; exit 1; }
@@ -171,7 +199,14 @@ jobs:
           pip install --upgrade pip setuptools wheel || { echo "❌ Falha ao atualizar pip"; exit 1; }
           
           echo "📦 Instalando requirements.txt..."
-          pip install -r requirements.txt || { echo "❌ Falha na instalação das dependências"; exit 1; }
+          pip install --no-cache-dir -r requirements.txt || { 
+            echo "❌ Falha na instalação das dependências"
+            echo "📊 Espaço atual:"
+            df -h /
+            echo "🔍 Últimos erros do pip:"
+            tail -20 ~/.cache/pip/log/* 2>/dev/null || echo "Nenhum log do pip encontrado"
+            exit 1
+          }
           
           # Cria .env com secrets
           echo "⚙️ Configurando variáveis de ambiente..."
