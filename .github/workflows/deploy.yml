@@ -140,11 +140,37 @@ jobs:
             exit 1
           fi
           
-          # Instala dependências
+          # Instala dependências com melhor controle de erro
           echo "📦 Instalando dependências Python..."
-          python3 -m venv venv
-          source venv/bin/activate
-          pip install --upgrade pip setuptools wheel
+          
+          # Remove venv antigo se existir
+          rm -rf venv
+          
+          # Verifica se python3 está disponível
+          which python3 || { echo "❌ Python3 não encontrado"; exit 1; }
+          
+          # Cria novo ambiente virtual
+          echo "🔧 Criando ambiente virtual..."
+          python3 -m venv venv || { echo "❌ Falha ao criar venv"; exit 1; }
+          
+          # Verifica se o venv foi criado corretamente
+          if [ ! -f "venv/bin/activate" ]; then
+            echo "❌ venv/bin/activate não encontrado"
+            exit 1
+          fi
+          
+          # Ativa ambiente virtual
+          echo "🔧 Ativando ambiente virtual..."
+          source venv/bin/activate || { echo "❌ Falha ao ativar venv"; exit 1; }
+          
+          # Verifica pip
+          which pip || { echo "❌ pip não encontrado no venv"; exit 1; }
+          
+          # Instala dependências
+          echo "📦 Atualizando pip..."
+          pip install --upgrade pip setuptools wheel || { echo "❌ Falha ao atualizar pip"; exit 1; }
+          
+          echo "📦 Instalando requirements.txt..."
           pip install -r requirements.txt || { echo "❌ Falha na instalação das dependências"; exit 1; }
           
           # Cria .env com secrets
