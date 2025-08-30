@@ -1,0 +1,135 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Smart Tracking Design System - Stagg Inspired
+All colors MUST be HSL. Based on Stagg's green dark/light theme.
+*/
+
+@layer base {
+  :root {
+    /* Stagg Brand Colors */
+    --brand-dark: 165 85% 8%;     /* Deep forest green background */
+    --brand-primary: 140 100% 70%; /* Bright green accent */
+    --brand-light: 140 30% 95%;   /* Very light green */
+    
+    /* System Colors */
+    --background: 0 0% 98%;
+    --foreground: 165 85% 8%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 165 85% 8%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 165 85% 8%;
+
+    --primary: 140 100% 70%;
+    --primary-foreground: 165 85% 8%;
+
+    --secondary: 140 30% 95%;
+    --secondary-foreground: 165 85% 8%;
+
+    --muted: 0 0% 96%;
+    --muted-foreground: 165 30% 40%;
+
+    --accent: 140 100% 70%;
+    --accent-foreground: 165 85% 8%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 90%;
+    --input: 0 0% 95%;
+    --ring: 140 100% 70%;
+
+    --radius: 0.75rem;
+    
+    /* Custom Design Tokens */
+    --sidebar-bg: 165 85% 8%;
+    --sidebar-text: 140 100% 70%;
+    --sidebar-text-muted: 140 30% 70%;
+    --sidebar-active: 140 100% 70%;
+    --sidebar-hover: 165 70% 12%;
+    
+    --success: 140 100% 70%;
+    --warning: 45 100% 60%;
+    --info: 210 100% 70%;
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(140 100% 70%), hsl(140 80% 60%));
+    --gradient-dark: linear-gradient(135deg, hsl(165 85% 8%), hsl(165 70% 12%));
+    
+    /* Shadows */
+    --shadow-soft: 0 2px 8px hsl(165 85% 8% / 0.1);
+    --shadow-medium: 0 4px 16px hsl(165 85% 8% / 0.15);
+    --shadow-strong: 0 8px 32px hsl(165 85% 8% / 0.25);
+    
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Dark theme - keeping the same Stagg identity */
+    --background: 165 85% 8%;
+    --foreground: 140 100% 70%;
+
+    --card: 165 70% 12%;
+    --card-foreground: 140 100% 70%;
+
+    --popover: 165 70% 12%;
+    --popover-foreground: 140 100% 70%;
+
+    --primary: 140 100% 70%;
+    --primary-foreground: 165 85% 8%;
+
+    --secondary: 165 50% 15%;
+    --secondary-foreground: 140 100% 70%;
+
+    --muted: 165 50% 15%;
+    --muted-foreground: 140 30% 70%;
+
+    --accent: 140 100% 70%;
+    --accent-foreground: 165 85% 8%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 140 100% 70%;
+
+    --border: 165 50% 20%;
+    --input: 165 50% 15%;
+    --ring: 140 100% 70%;
+    
+    /* Dark sidebar maintains consistency */
+    --sidebar-bg: 165 85% 8%;
+    --sidebar-text: 140 100% 70%;
+    --sidebar-text-muted: 140 30% 70%;
+    --sidebar-active: 140 100% 70%;
+    --sidebar-hover: 165 70% 12%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
