@@ -1,0 +1,298 @@
+version: '3.8'
+
+services:
+  # === GATEKEEPER API ===
+  gatekeeper-api:
+    build: 
+      context: ./api
+      dockerfile: Dockerfile.prod
+    container_name: gatekeeper-api-prod
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://mongodb:27017/gatekeeper
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - CORS_ORIGINS=https://${DOMAIN},https://www.${DOMAIN}
+      - LOG_LEVEL=INFO
+      - MAX_UPLOAD_SIZE=50MB
+    ports:
+      - "8001:8001"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - gatekeeper-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    volumes:
+      - ./logs/api:/app/logs
+      - ./uploads:/app/uploads
+      
+  # === CREWAI AGENTS ===
+  crewai-agents:
+    build: 
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: crewai-agents-prod
+    restart: unless-stopped
+    environment:
+      - GATEKEEPER_API_URL=http://gatekeeper-api:8001
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - PYTHONUNBUFFERED=1
+      - PYTHONOPTIMIZE=1
+      - LOG_LEVEL=INFO
+      - MONGODB_URI=mongodb://mongodb:27017/gatekeeper
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      gatekeeper-api:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - gatekeeper-network
+    volumes:
+      - ./logs/agents:/app/logs
+      - ./uploads:/app/uploads
+      - ./models:/app/models
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://gatekeeper-api:8001/health', timeout=10)"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+
+  # === DATABASE ===
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb-prod
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+      - MONGO_INITDB_DATABASE=gatekeeper
+    volumes:
+      - mongodb-data:/data/db
+      - mongodb-config:/data/configdb
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+      - ./database/backup:/backup
+    networks:
+      - gatekeeper-network
+    command: >
+      mongod 
+      --auth 
+      --bind_ip_all 
+      --replSet rs0
+      --oplogSize 128
+      --wiredTigerCacheSizeGB 0.5
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.admin.command('hello')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # === REDIS CACHE ===
+  redis:
+    image: redis:7.2-alpine
+    container_name: redis-prod
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+      - ./redis/redis.conf:/etc/redis/redis.conf:ro
+    networks:
+      - gatekeeper-network
+    command: redis-server /etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # === REVERSE PROXY ===
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: nginx-prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/logs:/var/log/nginx
+      - ./static:/var/www/static:ro
+    depends_on:
+      gatekeeper-api:
+        condition: service_healthy
+    networks:
+      - gatekeeper-network
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # === MONITORING ===
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: prometheus-prod
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+    networks:
+      - gatekeeper-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.retention.size=10GB'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: grafana-prod
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_USERS_ALLOW_ORG_CREATE=false
+      - GF_USERS_AUTO_ASSIGN_ORG=true
+      - GF_USERS_AUTO_ASSIGN_ORG_ID=1
+      - GF_USERS_AUTO_ASSIGN_ORG_ROLE=Viewer
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    networks:
+      - gatekeeper-network
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # === LOG COLLECTOR ===
+  fluentd:
+    build: ./monitoring/fluentd
+    container_name: fluentd-prod
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/fluentd/conf:/fluentd/etc:ro
+      - ./logs:/var/log/containers:ro
+    networks:
+      - gatekeeper-network
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+volumes:
+  mongodb-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/mongodb
+  mongodb-config:
+    driver: local
+  redis-data:
+    driver: local  
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/redis
+  prometheus-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/prometheus
+  grafana-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/grafana
+
+networks:
+  gatekeeper-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+    driver_opts:
+      com.docker.network.bridge.name: gatekeeper0

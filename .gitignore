@@ -161,3 +161,104 @@ test-results/
 playwright-report/
 # Documentação gerada automaticamente
 documentacao_final.pdf
+
+# ===== PYTHON SPECIFIC =====
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Python virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+.env
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ===== AI/ML & PROJECT SPECIFIC =====
+# AI models and training data
+*.model
+*.pkl
+*.h5
+models/
+training_data/
+datasets/
+
+# Large files
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Security
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker overrides
+docker-compose.override.yml
+
+# ===== KEEP IMPORTANT FILES =====
+!.env.example
+!.env.template
+!docker-compose.yml
+!Dockerfile
+!requirements.txt

@@ -55,7 +55,8 @@ async def list_orders(
     status: Optional[OrderStatus] = Query(None, description="Filtrar por status"),
     order_type: Optional[OrderType] = Query(None, description="Filtrar por tipo"),
     customer: Optional[str] = Query(None, description="Filtrar por cliente"),
-    priority: Optional[int] = Query(None, description="Filtrar por prioridade")
+    priority: Optional[int] = Query(None, description="Filtrar por prioridade"),
+    search: Optional[str] = Query(None, description="Buscar em título, cliente, tags e descrição")
 ):
     """Lista todas as orders com filtros opcionais"""
     try:
@@ -69,6 +70,27 @@ async def list_orders(
             filters["customer_name"] = {"$regex": customer, "$options": "i"}
         if priority:
             filters["priority"] = priority
+            
+        # Implementar busca full-text
+        if search:
+            search_conditions = []
+            search_regex = {"$regex": search, "$options": "i"}
+            
+            # Buscar em múltiplos campos
+            search_conditions.extend([
+                {"title": search_regex},
+                {"customer_name": search_regex},
+                {"description": search_regex},
+                {"origin": search_regex},
+                {"destination": search_regex},
+                {"tags": {"$elemMatch": search_regex}}
+            ])
+            
+            # Se já existem outros filtros, combinar com AND
+            if filters:
+                filters = {"$and": [filters, {"$or": search_conditions}]}
+            else:
+                filters = {"$or": search_conditions}
             
         # Buscar com paginação
         orders = await Order.find(filters).skip(skip).limit(limit).to_list()
