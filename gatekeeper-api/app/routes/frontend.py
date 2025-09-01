@@ -1079,6 +1079,230 @@ async def get_approval_status(document_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Document Proxy Endpoints
+@router.get("/documents/{document_id}/view")
+async def view_document_proxy(document_id: str):
+    """Proxy endpoint para visualizar documentos contornando problemas de CORS/S3"""
+    try:
+        from fastapi.responses import Response
+        import aiohttp
+        
+        # Buscar documento no MongoDB
+        document = await DocumentFile.get(document_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Documento não encontrado")
+        
+        # Se o documento foi realmente uploaded (não é synthetic), tentar servir o arquivo
+        if document.s3_key and not document.s3_key.startswith('synthetic/'):
+            # Para documentos reais, verificar se temos o arquivo localmente ou em S3 real
+            # Por enquanto, retornar o conteúdo de texto extraído como fallback
+            if document.text_content:
+                return Response(
+                    content=f"""
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>{document.original_name}</title>
+                        <meta charset="UTF-8">
+                        <style>
+                            body {{ font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }}
+                            .header {{ background: #f5f5f5; padding: 20px; margin-bottom: 20px; border-radius: 5px; }}
+                            .content {{ white-space: pre-wrap; background: white; padding: 20px; border: 1px solid #ddd; }}
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header">
+                            <h1>{document.original_name}</h1>
+                            <p><strong>Categoria:</strong> {document.category}</p>
+                            <p><strong>Tamanho:</strong> {document.size_bytes} bytes</p>
+                            <p><strong>Status:</strong> {document.processing_status}</p>
+                            <p><strong>Upload:</strong> {document.uploaded_at}</p>
+                        </div>
+                        <div class="content">{document.text_content}</div>
+                    </body>
+                    </html>
+                    """,
+                    media_type="text/html"
+                )
+        
+        # Para documentos synthetic ou sem conteúdo, tentar acessar S3
+        if document.s3_url:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(document.s3_url) as response:
+                        if response.status == 200:
+                            content = await response.read()
+                            content_type = response.headers.get('content-type', 'application/octet-stream')
+                            return Response(content=content, media_type=content_type)
+                        else:
+                            # S3 não acessível, retornar documento HTML com informações
+                            raise HTTPException(status_code=404, detail="Arquivo não acessível no S3")
+            except Exception as e:
+                print(f"Erro ao acessar S3: {e}")
+        
+        # Fallback: retornar página HTML com informações do documento
+        return Response(
+            content=f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>{document.original_name}</title>
+                <meta charset="UTF-8">
+                <style>
+                    body {{ 
+                        font-family: Arial, sans-serif; 
+                        margin: 40px; 
+                        line-height: 1.6; 
+                        background: #f9f9f9; 
+                    }}
+                    .container {{ 
+                        max-width: 800px; 
+                        margin: 0 auto; 
+                        background: white; 
+                        padding: 30px; 
+                        border-radius: 10px; 
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+                    }}
+                    .header {{ 
+                        text-align: center; 
+                        margin-bottom: 30px; 
+                        padding-bottom: 20px; 
+                        border-bottom: 2px solid #eee; 
+                    }}
+                    .info-grid {{ 
+                        display: grid; 
+                        grid-template-columns: repeat(2, 1fr); 
+                        gap: 15px; 
+                        margin-bottom: 20px; 
+                    }}
+                    .info-item {{ 
+                        padding: 15px; 
+                        background: #f8f9fa; 
+                        border-radius: 5px; 
+                    }}
+                    .info-label {{ 
+                        font-weight: bold; 
+                        color: #555; 
+                        margin-bottom: 5px; 
+                    }}
+                    .error-notice {{ 
+                        background: #fff3cd; 
+                        border: 1px solid #ffeaa7; 
+                        padding: 15px; 
+                        border-radius: 5px; 
+                        margin-top: 20px; 
+                        text-align: center; 
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>📄 {document.original_name}</h1>
+                        <p style="color: #666;">Visualização de Documento</p>
+                    </div>
+                    
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <div class="info-label">Categoria</div>
+                            <div>{document.category}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Status</div>
+                            <div>{document.processing_status}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Tamanho</div>
+                            <div>{round(document.size_bytes / 1024 / 1024, 2) if document.size_bytes else 'N/A'} MB</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Upload</div>
+                            <div>{document.uploaded_at.strftime('%d/%m/%Y %H:%M') if document.uploaded_at else 'N/A'}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Order ID</div>
+                            <div>{document.order_id}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Acessos</div>
+                            <div>{document.access_count}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="error-notice">
+                        <strong>⚠️ Arquivo Original Indisponível</strong><br>
+                        O arquivo original não pôde ser carregado do armazenamento S3.<br>
+                        Informações do documento estão disponíveis acima.
+                    </div>
+                </div>
+            </body>
+            </html>
+            """,
+            media_type="text/html"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao processar documento: {str(e)}")
+
+@router.get("/documents/{document_id}/download")
+async def download_document_proxy(document_id: str):
+    """Proxy endpoint para download de documentos"""
+    try:
+        from fastapi.responses import Response
+        import aiohttp
+        
+        # Buscar documento no MongoDB
+        document = await DocumentFile.get(document_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Documento não encontrado")
+        
+        # Incrementar contador de acesso
+        document.increment_access()
+        await document.save()
+        
+        # Tentar download via S3
+        if document.s3_url:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(document.s3_url) as response:
+                        if response.status == 200:
+                            content = await response.read()
+                            content_type = response.headers.get('content-type', 'application/octet-stream')
+                            
+                            # Headers para download
+                            headers = {
+                                'Content-Disposition': f'attachment; filename="{document.original_name}"'
+                            }
+                            
+                            return Response(
+                                content=content, 
+                                media_type=content_type,
+                                headers=headers
+                            )
+            except Exception as e:
+                print(f"Erro ao baixar do S3: {e}")
+        
+        # Fallback: retornar conteúdo de texto como arquivo
+        if document.text_content:
+            headers = {
+                'Content-Disposition': f'attachment; filename="{document.original_name.replace(".pdf", ".txt").replace(".jpg", ".txt")}"'
+            }
+            return Response(
+                content=document.text_content.encode('utf-8'),
+                media_type='text/plain',
+                headers=headers
+            )
+        
+        # Se não há conteúdo, retornar erro
+        raise HTTPException(status_code=404, detail="Conteúdo do arquivo não disponível")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro no download: {str(e)}")
+
 # Chat endpoints
 @router.post("/chat/message")
 async def process_chat_message(request: ChatMessageRequest):
