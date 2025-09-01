@@ -1146,9 +1146,46 @@ async def view_document_proxy(document_id: str):
                     media_type="text/html"
                 )
         
-        # Para documentos synthetic ou sem conteúdo, tentar acessar S3
+        # Para documentos S3, tentar acessar com presigned URL
         if document.s3_url:
             try:
+                # Para URLs S3 reais, gerar presigned URL
+                if 's3.amazonaws.com' in document.s3_url or 's3.' in document.s3_url:
+                    import boto3
+                    import os
+                    from botocore.exceptions import NoCredentialsError
+                    
+                    try:
+                        # Configurar cliente S3
+                        s3_client = boto3.client(
+                            's3',
+                            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+                            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+                            region_name=os.getenv("AWS_REGION")
+                        )
+                        
+                        # Extrair bucket e key da URL
+                        bucket = os.getenv("S3_BUCKET", "tracking-mit")
+                        key = document.s3_key
+                        
+                        # Gerar presigned URL
+                        presigned_url = s3_client.generate_presigned_url(
+                            'get_object',
+                            Params={'Bucket': bucket, 'Key': key},
+                            ExpiresIn=3600  # 1 hora
+                        )
+                        
+                        # Fazer download usando presigned URL
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get(presigned_url) as response:
+                                if response.status == 200:
+                                    content = await response.read()
+                                    content_type = response.headers.get('content-type', 'application/octet-stream')
+                                    return Response(content=content, media_type=content_type)
+                    except (NoCredentialsError, Exception) as e:
+                        print(f"Erro ao acessar S3: {e}")
+                        
+                # Fallback: tentar URL direta
                 async with aiohttp.ClientSession() as session:
                     async with session.get(document.s3_url) as response:
                         if response.status == 200:
@@ -1298,16 +1335,61 @@ async def download_document_proxy(document_id: str):
                 headers=headers
             )
         
-        # Prioridade 2: Tentar download via S3 (quando configurado)
+        # Prioridade 2: Tentar download via S3 com presigned URL (URLs reais)
         if document.s3_url and not document.s3_url.startswith('https://s3.amazonaws.com/bucket/'):
             try:
+                # Para URLs S3 reais, gerar presigned URL
+                if 's3.amazonaws.com' in document.s3_url or 's3.' in document.s3_url:
+                    import boto3
+                    import os
+                    from botocore.exceptions import NoCredentialsError
+                    
+                    try:
+                        # Configurar cliente S3
+                        s3_client = boto3.client(
+                            's3',
+                            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+                            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+                            region_name=os.getenv("AWS_REGION")
+                        )
+                        
+                        # Extrair bucket e key da URL
+                        bucket = os.getenv("S3_BUCKET", "tracking-mit")
+                        key = document.s3_key
+                        
+                        # Gerar presigned URL
+                        presigned_url = s3_client.generate_presigned_url(
+                            'get_object',
+                            Params={'Bucket': bucket, 'Key': key},
+                            ExpiresIn=3600  # 1 hora
+                        )
+                        
+                        # Fazer download usando presigned URL
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get(presigned_url) as response:
+                                if response.status == 200:
+                                    content = await response.read()
+                                    content_type = response.headers.get('content-type', 'application/octet-stream')
+                                    
+                                    headers = {
+                                        'Content-Disposition': f'attachment; filename="{document.original_name}"'
+                                    }
+                                    
+                                    return Response(
+                                        content=content, 
+                                        media_type=content_type,
+                                        headers=headers
+                                    )
+                    except (NoCredentialsError, Exception) as e:
+                        print(f"Erro ao acessar S3: {e}")
+                        
+                # Fallback: tentar URL direta (para casos especiais)
                 async with aiohttp.ClientSession() as session:
                     async with session.get(document.s3_url) as response:
                         if response.status == 200:
                             content = await response.read()
                             content_type = response.headers.get('content-type', 'application/octet-stream')
                             
-                            # Headers para download
                             headers = {
                                 'Content-Disposition': f'attachment; filename="{document.original_name}"'
                             }
