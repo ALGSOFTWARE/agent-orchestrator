@@ -11,6 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/components/ui/use-toast";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import DocumentVersioning from "@/components/ui/DocumentVersioning";
+import DocumentApproval from "@/components/ui/DocumentApproval";
 import { 
   FileText, 
   Upload, 
@@ -31,7 +34,9 @@ import {
   Shield,
   CheckCircle,
   Clock,
-  AlertCircle
+  AlertCircle,
+  GitBranch,
+  UserCheck
 } from "lucide-react";
 
 // Mock data
@@ -529,74 +534,16 @@ const DocumentViewer = ({ documento, isOpen, onClose }: { documento: any; isOpen
             </div>
           ) : (
             <div className="h-full">
-              {documentType === "PDF" && (
-                <iframe
-                  src={documento.s3_url}
-                  title={documento.numero}
-                  className="w-full h-full rounded border-0"
-                  style={{ minHeight: '400px' }}
-                  onError={() => {
-                    console.log('Erro ao carregar PDF:', documento.s3_url);
-                  }}
-                />
-              )}
-              {documentType === "XML" && (
-                <iframe
-                  src={documento.s3_url}
-                  title={documento.numero}
-                  className="w-full h-full rounded border-0 bg-white"
-                  style={{ minHeight: '400px' }}
-                  onError={() => {
-                    console.log('Erro ao carregar XML:', documento.s3_url);
-                  }}
-                />
-              )}
-              {documentType === "IMAGEM" && (
-                <div className="h-full flex items-center justify-center p-4">
-                  <img
-                    src={documento.s3_url}
-                    alt={documento.numero}
-                    className="max-h-full max-w-full rounded shadow-lg object-contain"
-                    onError={(e) => {
-                      console.log('Erro ao carregar imagem:', documento.s3_url);
-                      // Mostrar mensagem de erro na própria imagem
-                      (e.target as HTMLImageElement).style.display = 'none';
-                      const parent = (e.target as HTMLImageElement).parentElement;
-                      if (parent && !parent.querySelector('.error-message')) {
-                        parent.innerHTML = `
-                          <div class="error-message text-center">
-                            <div class="h-16 w-16 mx-auto mb-4 flex items-center justify-center bg-muted rounded">
-                              <svg class="h-8 w-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-                              </svg>
-                            </div>
-                            <p class="text-muted-foreground">Arquivo não pôde ser carregado</p>
-                            <p class="text-sm text-muted-foreground mt-2">Use o botão Download para tentar baixar</p>
-                          </div>
-                        `;
-                      }
-                    }}
-                  />
-                </div>
-              )}
-              {documentType === "DESCONHECIDO" && (
-                <div className="h-full flex items-center justify-center">
-                  <div className="text-center">
-                    <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                    <p className="text-muted-foreground">Tipo de arquivo não suportado para visualização</p>
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Use o botão Download para baixar o arquivo
-                    </p>
-                    <Button
-                      className="mt-4"
-                      onClick={() => handleDownload(documento)}
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      Download Arquivo
-                    </Button>
-                  </div>
-                </div>
-              )}
+              {/* Usar endpoint proxy para todos os tipos de documento */}
+              <iframe
+                src={`http://localhost:8001/api/frontend/documents/${documento.id}/view`}
+                title={documento.numero}
+                className="w-full h-full rounded border-0"
+                style={{ minHeight: '400px' }}
+                onError={() => {
+                  console.log('Erro ao carregar documento via proxy:', documento.id);
+                }}
+              />
             </div>
           )}
         </div>
@@ -615,6 +562,11 @@ export default function Documentos() {
   const [documentoSelecionado, setDocumentoSelecionado] = useState(null);
   const [documentosReais, setDocumentosReais] = useState<any[]>([]);
   const [carregandoDocumentos, setCarregandoDocumentos] = useState(true);
+  const [versioningModalOpen, setVersioningModalOpen] = useState(false);
+  const [approvalModalOpen, setApprovalModalOpen] = useState(false);
+  const [selectedDocumentForVersioning, setSelectedDocumentForVersioning] = useState<any>(null);
+  const [documentVersions, setDocumentVersions] = useState<any[]>([]);
+  const [documentApproval, setDocumentApproval] = useState<any>(null);
   const { toast } = useToast();
 
   // Carregar documentos reais quando componente monta
@@ -687,8 +639,8 @@ export default function Documentos() {
 
   const handleDownload = async (doc: any) => {
     try {
-      if (!doc.s3_url || !doc.has_valid_s3) {
-        throw new Error('Arquivo não disponível para download');
+      if (!doc.id) {
+        throw new Error('ID do documento não disponível');
       }
 
       toast({
@@ -696,9 +648,12 @@ export default function Documentos() {
         description: `Baixando ${doc.numero}...`,
       });
 
+      // Usar endpoint proxy para download
+      const downloadUrl = `http://localhost:8001/api/frontend/documents/${doc.id}/download`;
+      
       // Criar link temporário para download
       const link = document.createElement('a');
-      link.href = doc.s3_url;
+      link.href = downloadUrl;
       link.download = doc.numero;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
@@ -742,6 +697,152 @@ export default function Documentos() {
         variant: "destructive"
       });
     }
+  };
+
+  const handleVersioning = async (doc: any) => {
+    try {
+      setSelectedDocumentForVersioning(doc);
+      
+      // Carregar versões do documento
+      const response = await fetch(`http://localhost:8001/api/frontend/documents/${doc.id}/versions`);
+      const result = await response.json();
+      
+      if (result.success) {
+        setDocumentVersions(result.data || []);
+      } else {
+        setDocumentVersions([]);
+      }
+      
+      setVersioningModalOpen(true);
+    } catch (error) {
+      console.error('Erro ao carregar versões:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar as versões do documento",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleApproval = async (doc: any) => {
+    try {
+      setSelectedDocumentForVersioning(doc);
+      
+      // Carregar informações de aprovação do documento
+      const response = await fetch(`http://localhost:8001/api/frontend/documents/${doc.id}/approval`);
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        setDocumentApproval(result.data);
+      } else {
+        setDocumentApproval(null);
+      }
+      
+      setApprovalModalOpen(true);
+    } catch (error) {
+      console.error('Erro ao carregar aprovação:', error);
+      setDocumentApproval(null);
+      setApprovalModalOpen(true);
+    }
+  };
+
+  const handleCreateVersion = async (data: {
+    version_type: "major" | "minor" | "revision" | "auto";
+    changes_description: string;
+    file?: File;
+  }) => {
+    if (!selectedDocumentForVersioning) return;
+
+    const formData = new FormData();
+    formData.append('version_type', data.version_type);
+    formData.append('changes_description', data.changes_description);
+    if (data.file) {
+      formData.append('file', data.file);
+    }
+
+    const response = await fetch(
+      `http://localhost:8001/api/frontend/documents/${selectedDocumentForVersioning.id}/versions`,
+      {
+        method: 'POST',
+        body: formData
+      }
+    );
+
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error(result.message || 'Erro ao criar versão');
+    }
+
+    // Recarregar versões
+    await handleVersioning(selectedDocumentForVersioning);
+    await carregarDocumentos(); // Atualizar lista principal
+  };
+
+  const handleViewVersion = (versionId: string) => {
+    const downloadUrl = `http://localhost:8001/api/frontend/documents/versions/${versionId}/view`;
+    window.open(downloadUrl, '_blank');
+  };
+
+  const handleDownloadVersion = (versionId: string) => {
+    const downloadUrl = `http://localhost:8001/api/frontend/documents/versions/${versionId}/download`;
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = `version-${versionId}`;
+    link.click();
+  };
+
+  const handleSubmitApproval = async (decision: "approved" | "rejected" | "request_changes", comment: string) => {
+    if (!selectedDocumentForVersioning || !documentApproval) return;
+
+    const response = await fetch(
+      `http://localhost:8001/api/frontend/documents/approval/${documentApproval.approval_id}/decision`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          decision,
+          comment,
+          approver_id: 'current-user', // Should be from auth context
+        })
+      }
+    );
+
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error(result.message || 'Erro ao enviar aprovação');
+    }
+
+    // Recarregar informações de aprovação
+    await handleApproval(selectedDocumentForVersioning);
+    await carregarDocumentos(); // Atualizar lista principal
+  };
+
+  const handleRequestApproval = async (workflowId: string) => {
+    if (!selectedDocumentForVersioning) return;
+
+    const response = await fetch(
+      `http://localhost:8001/api/frontend/documents/${selectedDocumentForVersioning.id}/request-approval`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          workflow_id: workflowId,
+          version_id: selectedDocumentForVersioning.current_version_id,
+        })
+      }
+    );
+
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error(result.message || 'Erro ao solicitar aprovação');
+    }
+
+    // Recarregar informações de aprovação
+    await handleApproval(selectedDocumentForVersioning);
   };
 
   const estatisticas = {
@@ -954,9 +1055,37 @@ export default function Documentos() {
                           <Download className="w-4 h-4 mr-1" />
                           Download
                         </Button>
-                        <Button size="sm" variant="outline">
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="sm" variant="outline">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleVersioning(doc)}>
+                              <GitBranch className="w-4 h-4 mr-2" />
+                              Versões
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleApproval(doc)}>
+                              <UserCheck className="w-4 h-4 mr-2" />
+                              Aprovação
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleView(doc)}>
+                              <Eye className="w-4 h-4 mr-2" />
+                              Visualizar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDownload(doc)}>
+                              <Download className="w-4 h-4 mr-2" />
+                              Download
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-red-600">
+                              <AlertCircle className="w-4 h-4 mr-2" />
+                              Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   </div>
@@ -986,6 +1115,55 @@ export default function Documentos() {
           isOpen={viewerOpen}
           onClose={() => setViewerOpen(false)}
         />
+
+        {/* Versioning Modal */}
+        <Dialog open={versioningModalOpen} onOpenChange={setVersioningModalOpen}>
+          <DialogContent className="max-w-4xl h-[80vh]">
+            <DialogHeader>
+              <DialogTitle>
+                Controle de Versões - {selectedDocumentForVersioning?.numero}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto">
+              {selectedDocumentForVersioning && (
+                <DocumentVersioning
+                  documentId={selectedDocumentForVersioning.id}
+                  currentVersion={selectedDocumentForVersioning.current_version || selectedDocumentForVersioning.versao?.toString() || "1.0"}
+                  versions={documentVersions}
+                  onCreateVersion={handleCreateVersion}
+                  onViewVersion={handleViewVersion}
+                  onDownloadVersion={handleDownloadVersion}
+                  isLoading={false}
+                />
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Approval Modal */}
+        <Dialog open={approvalModalOpen} onOpenChange={setApprovalModalOpen}>
+          <DialogContent className="max-w-4xl h-[80vh]">
+            <DialogHeader>
+              <DialogTitle>
+                Aprovação de Documento - {selectedDocumentForVersioning?.numero}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto">
+              {selectedDocumentForVersioning && (
+                <DocumentApproval
+                  documentId={selectedDocumentForVersioning.id}
+                  versionId={selectedDocumentForVersioning.current_version_id}
+                  approval={documentApproval}
+                  canApprove={true} // This should be determined by user permissions
+                  currentUserId="current-user" // This should come from auth context
+                  onSubmitApproval={handleSubmitApproval}
+                  onRequestApproval={handleRequestApproval}
+                  isLoading={false}
+                />
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
