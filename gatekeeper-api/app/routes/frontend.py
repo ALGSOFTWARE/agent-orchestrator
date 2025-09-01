@@ -22,7 +22,7 @@ from ..services.embedding_api_service import embedding_api_service
 from ..database import get_mongo_client
 
 # Importar modelos para buscar documentos reais
-from ..models import Order, DocumentFile, DocumentCategory, OrderStatus, ProcessingStatus
+from ..models import Order, DocumentFile, DocumentCategory, OrderStatus, ProcessingStatus, DocumentVersion, DocumentApproval, DocumentVersionType, ApprovalStatus
 
 try:
     # Importar diretamente da classe FrontendAPITool
@@ -164,7 +164,16 @@ async def _search_documents_traditional(
                 "size": f"{doc.size_bytes / 1024 / 1024:.1f} MB" if doc.size_bytes else "N/A",
                 "s3_key": doc.s3_key,
                 "s3_url": doc.s3_url,
-                "has_valid_s3": bool(doc.s3_key and doc.s3_key.strip() != "")
+                "has_valid_s3": bool(doc.s3_key and doc.s3_key.strip() != ""),
+                # Informações de versionamento
+                "current_version": getattr(doc, 'current_version', '1.0'),
+                "version_count": getattr(doc, 'version_count', 1),
+                "is_versioned": getattr(doc, 'is_versioned', True),
+                # Informações de aprovação
+                "approval_status": getattr(doc, 'approval_status', ApprovalStatus.PENDING).value,
+                "requires_approval": getattr(doc, 'requires_approval', False),
+                "approved_by": getattr(doc, 'approved_by', []),
+                "approved_at": doc.approved_at.isoformat() if getattr(doc, 'approved_at', None) else None
             }
             documents.append(doc_data)
             
@@ -326,7 +335,16 @@ async def get_documents(
                             "date": document.uploaded_at.isoformat() if document.uploaded_at else datetime.now().isoformat(),
                             "status": "Validado" if document.processing_status == "completed" else "Pendente Validação",
                             "similarity_score": round(similarity_score, 3),
-                            "order_id": document.order_id
+                            "order_id": document.order_id,
+                            # Informações de versionamento
+                            "current_version": getattr(document, 'current_version', '1.0'),
+                            "version_count": getattr(document, 'version_count', 1),
+                            "is_versioned": getattr(document, 'is_versioned', True),
+                            # Informações de aprovação
+                            "approval_status": getattr(document, 'approval_status', ApprovalStatus.PENDING).value,
+                            "requires_approval": getattr(document, 'requires_approval', False),
+                            "approved_by": getattr(document, 'approved_by', []),
+                            "approved_at": document.approved_at.isoformat() if getattr(document, 'approved_at', None) else None
                         }
                         documents.append(doc_data)
                     
@@ -772,6 +790,292 @@ async def get_journeys(
             },
             "status_distribution": status_stats
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Document Versioning Endpoints
+@router.post("/documents/{document_id}/versions")
+async def create_document_version(
+    document_id: str,
+    version_type: str = Form(...),
+    version_notes: str = Form(None),
+    created_by: str = Form(...),
+    file: Optional[UploadFile] = File(None)
+):
+    """Cria uma nova versão de um documento"""
+    try:
+        from ..models import DocumentFile, DocumentVersion, DocumentVersionType
+        
+        # Buscar documento original
+        document = await DocumentFile.get(document_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Documento não encontrado")
+        
+        # Validar tipo de versão
+        try:
+            version_type_enum = DocumentVersionType(version_type)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Tipo de versão inválido")
+        
+        # Se novo arquivo foi enviado, fazer upload
+        new_s3_key = None
+        if file:
+            file_content = await file.read()
+            import uuid
+            file_id = str(uuid.uuid4())
+            new_s3_key = f"orders/{document.order_id}/documents/versions/{file_id}_{file.filename}"
+        
+        # Criar nova versão
+        new_version_number = document.create_new_version(
+            version_type=version_type_enum,
+            created_by=created_by,
+            version_notes=version_notes,
+            new_s3_key=new_s3_key
+        )
+        
+        # Salvar documento atualizado
+        await document.save()
+        
+        # Criar registro de versão
+        version_record = DocumentVersion(
+            parent_document_id=str(document.id),
+            version_number=new_version_number,
+            version_type=version_type_enum,
+            version_notes=version_notes,
+            s3_key=new_s3_key or document.s3_key,
+            s3_url=document.s3_url,
+            created_by=created_by,
+            text_content=document.text_content,
+            embedding=document.embedding,
+            processing_status=document.processing_status,
+            is_current=True
+        )
+        
+        # Marcar versões anteriores como não-current
+        await DocumentVersion.find(
+            DocumentVersion.parent_document_id == str(document.id),
+            DocumentVersion.is_current == True
+        ).update({"$set": {"is_current": False}})
+        
+        await version_record.save()
+        
+        return {
+            "success": True,
+            "data": {
+                "version_id": str(version_record.id),
+                "version_number": new_version_number,
+                "document_id": document_id,
+                "created_by": created_by,
+                "created_at": version_record.created_at.isoformat(),
+                "has_new_file": file is not None
+            },
+            "message": f"Versão {new_version_number} criada com sucesso"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/documents/{document_id}/versions")
+async def get_document_versions(document_id: str):
+    """Lista todas as versões de um documento"""
+    try:
+        from ..models import DocumentVersion
+        
+        versions = await DocumentVersion.find(
+            DocumentVersion.parent_document_id == document_id
+        ).sort([("created_at", -1)]).to_list()
+        
+        version_list = []
+        for version in versions:
+            version_list.append({
+                "version_id": str(version.id),
+                "version_number": version.version_number,
+                "version_type": version.version_type.value,
+                "version_notes": version.version_notes,
+                "created_by": version.created_by,
+                "created_at": version.created_at.isoformat(),
+                "is_current": version.is_current,
+                "is_published": version.is_published,
+                "processing_status": version.processing_status.value,
+                "s3_key": version.s3_key
+            })
+        
+        return {
+            "success": True,
+            "data": version_list,
+            "total_versions": len(version_list)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Document Approval Endpoints
+@router.post("/documents/{document_id}/approval/request")
+async def request_document_approval(
+    document_id: str,
+    required_approvers: List[str] = Form(...),
+    approval_level: int = Form(1),
+    due_date: Optional[str] = Form(None),
+    criteria: Optional[str] = Form(None),
+    requested_by: str = Form(...)
+):
+    """Solicita aprovação para um documento"""
+    try:
+        from ..models import DocumentFile, DocumentApproval
+        from datetime import datetime
+        
+        # Buscar documento
+        document = await DocumentFile.get(document_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Documento não encontrado")
+        
+        # Converter due_date se fornecido
+        due_date_obj = None
+        if due_date:
+            try:
+                due_date_obj = datetime.fromisoformat(due_date.replace('Z', '+00:00'))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Data inválida")
+        
+        # Solicitar aprovação no documento
+        approval_data = document.request_approval(
+            required_approvers=required_approvers,
+            approval_level=approval_level,
+            due_date=due_date_obj,
+            criteria=criteria
+        )
+        
+        # Criar registro de aprovação
+        approval_record = DocumentApproval(
+            document_id=document_id,
+            required_approvers=required_approvers,
+            approval_level=approval_level,
+            due_date=due_date_obj,
+            approval_criteria=criteria
+        )
+        
+        await approval_record.save()
+        await document.save()
+        
+        return {
+            "success": True,
+            "data": {
+                "approval_id": str(approval_record.id),
+                "document_id": document_id,
+                "required_approvers": required_approvers,
+                "approval_level": approval_level,
+                "due_date": due_date_obj.isoformat() if due_date_obj else None,
+                "status": approval_record.status.value
+            },
+            "message": "Solicitação de aprovação criada"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/documents/{document_id}/approval/decision")
+async def submit_approval_decision(
+    document_id: str,
+    decision: str = Form(...),
+    approver_id: str = Form(...),
+    comments: Optional[str] = Form(None)
+):
+    """Submete decisão de aprovação"""
+    try:
+        from ..models import DocumentFile, DocumentApproval, ApprovalStatus
+        
+        # Validar decisão
+        try:
+            decision_enum = ApprovalStatus(decision)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Decisão inválida")
+        
+        # Buscar documento e aprovação
+        document = await DocumentFile.get(document_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Documento não encontrado")
+        
+        approval = await DocumentApproval.find_one(
+            DocumentApproval.document_id == document_id,
+            DocumentApproval.status == ApprovalStatus.PENDING
+        )
+        
+        if not approval:
+            raise HTTPException(status_code=404, detail="Solicitação de aprovação não encontrada")
+        
+        # Verificar se usuário pode aprovar
+        if approver_id not in approval.required_approvers:
+            raise HTTPException(status_code=403, detail="Usuário não autorizado a aprovar")
+        
+        # Adicionar decisão
+        approval.add_approval(approver_id, decision_enum, comments)
+        await approval.save()
+        
+        # Atualizar documento
+        if decision_enum == ApprovalStatus.APPROVED:
+            document.approve_document(approver_id, comments)
+        elif decision_enum == ApprovalStatus.REJECTED:
+            document.reject_document(approver_id, comments or "Rejeitado")
+        
+        await document.save()
+        
+        return {
+            "success": True,
+            "data": {
+                "document_id": document_id,
+                "decision": decision,
+                "approver_id": approver_id,
+                "comments": comments,
+                "final_status": approval.status.value
+            },
+            "message": f"Decisão '{decision}' registrada com sucesso"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/documents/{document_id}/approval/status")
+async def get_approval_status(document_id: str):
+    """Consulta status de aprovação de um documento"""
+    try:
+        from ..models import DocumentFile, DocumentApproval
+        
+        document = await DocumentFile.get(document_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Documento não encontrado")
+        
+        approvals = await DocumentApproval.find(
+            DocumentApproval.document_id == document_id
+        ).sort([("created_at", -1)]).to_list()
+        
+        approval_history = []
+        for approval in approvals:
+            approval_history.append({
+                "approval_id": str(approval.id),
+                "status": approval.status.value,
+                "approval_level": approval.approval_level,
+                "required_approvers": approval.required_approvers,
+                "approvals": approval.approvals,
+                "created_at": approval.created_at.isoformat(),
+                "due_date": approval.due_date.isoformat() if approval.due_date else None,
+                "approval_criteria": approval.approval_criteria
+            })
+        
+        return {
+            "success": True,
+            "data": {
+                "document": {
+                    "id": document_id,
+                    "current_version": document.current_version,
+                    "approval_status": document.approval_status.value,
+                    "requires_approval": document.requires_approval,
+                    "approved_by": document.approved_by,
+                    "approved_at": document.approved_at.isoformat() if document.approved_at else None
+                },
+                "approval_history": approval_history
+            }
+        }
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -7,6 +7,7 @@ import { DocumentDetailModal } from "./DocumentDetailModal";
 import { SmartMenu, type MenuAction } from "./SmartMenu";
 import { MessageInterpreter, type InterpretationResult } from "./MessageInterpreter";
 import { useToast } from "@/hooks/use-toast";
+import { useChatMessage } from "@/hooks/useApi";
 
 export type DocumentType = "CTE" | "AWL" | "BL" | "MANIFESTO" | "NF";
 
@@ -35,6 +36,7 @@ export const ChatContainer = () => {
   
   const { toast } = useToast();
   const interpreter = new MessageInterpreter();
+  const chatMutation = useChatMessage();
   
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -133,7 +135,7 @@ Como posso ajudá-lo hoje?`,
     );
   };
 
-  const handleSendMessage = (content: string) => {
+  const handleSendMessage = async (content: string) => {
     const newMessage: Message = {
       id: Date.now().toString(),
       type: "user",
@@ -143,74 +145,56 @@ Como posso ajudá-lo hoje?`,
     
     setMessages(prev => [...prev, newMessage]);
     
-    // Interpretar mensagem
-    const interpretation = interpreter.interpret(content);
-    
-    setTimeout(() => {
-      let agentResponse: Message;
+    try {
+      // Usar a API real para processar a mensagem
+      const response = await chatMutation.mutateAsync({
+        message: content,
+        userContext: userProfile
+      });
       
-      if (interpretation.isDocumentRequest && interpretation.documentRequest?.isValidRequest) {
-        const doc = findDocument(interpretation.documentRequest.identifier || "");
-        
-        if (doc) {
-          agentResponse = {
-            id: (Date.now() + 1).toString(),
-            type: "agent",
-            content: `Encontrei o documento ${doc.number}! 
-
-📋 **Detalhes:**
-• Status: ${doc.status}
-• Cliente: ${doc.client}
-• Rota: ${doc.rota.origem} → ${doc.rota.destino}
-• Status da entrega: ${doc.rota.status}
-
-Você pode visualizar os detalhes completos, fazer download ou compartilhar o documento usando os botões abaixo.`,
-            timestamp: new Date(),
-            attachments: [{
-              type: doc.type,
-              name: doc.arquivo.nome,
-              url: doc.arquivo.url
-            }]
-          };
-          
-          // Mostrar modal de detalhes após um breve delay
-          setTimeout(() => {
-            setSelectedDocument(doc);
-            setIsDetailModalOpen(true);
-          }, 1500);
-        } else {
-          agentResponse = {
-            id: (Date.now() + 1).toString(),
-            type: "agent",
-            content: `Não consegui localizar o documento específico que você mencionou. 
-
-Algumas sugestões:
-• Verifique se o número está correto
-• Tente usar apenas os números (sem letras)
-• Use o botão "Consultar Documentos" para ver todos os documentos disponíveis
-
-Posso te ajudar de outra forma?`,
-            timestamp: new Date(),
-          };
-        }
-      } else if (interpretation.needsMoreInfo) {
-        agentResponse = {
-          id: (Date.now() + 1).toString(),
-          type: "agent",
-          content: interpretation.suggestedResponse || "Preciso de mais informações para te ajudar.",
-          timestamp: new Date(),
-        };
-      } else {
-        agentResponse = {
-          id: (Date.now() + 1).toString(),
-          type: "agent",
-          content: interpretation.suggestedResponse || "Como posso te ajudar com seus documentos e cargas?",
-          timestamp: new Date(),
-        };
-      }
+      // Criar mensagem de resposta do agente
+      const agentResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        type: "agent",
+        content: response.message,
+        timestamp: new Date(),
+        attachments: response.attachments || []
+      };
       
       setMessages(prev => [...prev, agentResponse]);
-    }, 1000);
+      
+      // Executar ações específicas baseadas na resposta
+      if (response.action === 'show_document' && response.data) {
+        setTimeout(() => {
+          setSelectedDocument(response.data);
+          setIsDetailModalOpen(true);
+        }, 1000);
+      } else if (response.action === 'open_modal') {
+        // Implementar outras ações conforme necessário
+        console.log('Action:', response.action, 'Data:', response.data);
+      }
+      
+    } catch (error) {
+      console.error('Erro no chat:', error);
+      
+      // Fallback para interpretação local em caso de erro da API
+      const interpretation = interpreter.interpret(content);
+      
+      const errorResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        type: "agent",
+        content: "Desculpe, estou com dificuldades para processar sua mensagem no momento. Tente novamente em alguns instantes.",
+        timestamp: new Date(),
+      };
+      
+      setMessages(prev => [...prev, errorResponse]);
+      
+      toast({
+        title: "Erro de Conexão",
+        description: "Não foi possível conectar com o servidor. Verificando conexão...",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleSmartMenuAction = (action: MenuAction, inputs?: Record<string, string>) => {

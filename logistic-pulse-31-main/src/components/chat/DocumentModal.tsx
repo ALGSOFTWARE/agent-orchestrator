@@ -8,6 +8,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { 
   Search, 
   Download, 
@@ -15,9 +17,13 @@ import {
   MapPin,
   Truck,
   Package,
-  FileText
+  FileText,
+  Loader2,
+  Brain,
+  Zap
 } from "lucide-react";
 import { DocumentType } from "./ChatContainer";
+import { useDocuments } from "@/hooks/useApi";
 
 interface DocumentModalProps {
   isOpen: boolean;
@@ -32,67 +38,11 @@ interface Document {
   origin: string;
   destination: string;
   date: string;
-  status: "Processado" | "Pendente" | "Em Análise";
-  carrier: string;
+  status: "Validado" | "Pendente Validação" | "Rejeitado" | "Processado" | "Pendente" | "Em Análise";
+  carrier?: string;
+  created_at?: string;
+  upload_date?: string;
 }
-
-const mockDocuments: Document[] = [
-  {
-    id: "1",
-    type: "CTE",
-    number: "CTE-2024-001234",
-    client: "Empresa ABC Ltda",
-    origin: "São Paulo/SP",
-    destination: "Rio de Janeiro/RJ",
-    date: "2024-01-15",
-    status: "Processado",
-    carrier: "Transportadora XYZ"
-  },
-  {
-    id: "2",
-    type: "NF",
-    number: "NF-2024-567890",
-    client: "Empresa DEF S.A",
-    origin: "Belo Horizonte/MG",
-    destination: "Salvador/BA", 
-    date: "2024-01-14",
-    status: "Pendente",
-    carrier: "Transportadora ABC"
-  },
-  {
-    id: "3",
-    type: "AWL",
-    number: "AWL-2024-789012",
-    client: "Importadora GHI",
-    origin: "Miami/USA",
-    destination: "São Paulo/SP",
-    date: "2024-01-13",
-    status: "Em Análise",
-    carrier: "Cargo Airlines"
-  },
-  {
-    id: "4",
-    type: "BL",
-    number: "BL-2024-345678",
-    client: "Empresa JKL Ltd",
-    origin: "Shanghai/China",
-    destination: "Santos/SP",
-    date: "2024-01-12",
-    status: "Processado",
-    carrier: "Ocean Shipping Co"
-  },
-  {
-    id: "5",
-    type: "MANIFESTO",
-    number: "MAN-2024-901234",
-    client: "Multiple Clients",
-    origin: "Campinas/SP",
-    destination: "Curitiba/PR",
-    date: "2024-01-11",
-    status: "Processado",
-    carrier: "Transportadora MNO"
-  }
-];
 
 const getDocumentIcon = (type: DocumentType) => {
   switch (type) {
@@ -113,12 +63,16 @@ const getDocumentIcon = (type: DocumentType) => {
 
 const getStatusColor = (status: string) => {
   switch (status) {
+    case "Validado":
     case "Processado":
-      return "bg-success text-white";
+      return "bg-green-500 text-white";
+    case "Pendente Validação":
     case "Pendente":
-      return "bg-warning text-white";
+      return "bg-yellow-500 text-white";
     case "Em Análise":
-      return "bg-info text-white";
+      return "bg-blue-500 text-white";
+    case "Rejeitado":
+      return "bg-red-500 text-white";
     default:
       return "bg-muted text-muted-foreground";
   }
@@ -127,15 +81,22 @@ const getStatusColor = (status: string) => {
 export const DocumentModal = ({ isOpen, onClose }: DocumentModalProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState<DocumentType | "ALL">("ALL");
+  const [useSemanticSearch, setUseSemanticSearch] = useState(false);
 
   const documentTypes: (DocumentType | "ALL")[] = ["ALL", "CTE", "AWL", "BL", "MANIFESTO", "NF"];
 
-  const filteredDocuments = mockDocuments.filter((doc) => {
-    const matchesSearch = doc.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         doc.client.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = selectedType === "ALL" || doc.type === selectedType;
-    return matchesSearch && matchesType;
+  // Usar dados reais da API com busca semântica opcional
+  const { 
+    data: apiDocuments = [], 
+    isLoading, 
+    error 
+  } = useDocuments({ 
+    type: selectedType === "ALL" ? undefined : selectedType,
+    search: searchTerm || undefined,
+    semantic_search: useSemanticSearch && searchTerm.length > 0
   });
+
+  const filteredDocuments = apiDocuments;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -147,20 +108,60 @@ export const DocumentModal = ({ isOpen, onClose }: DocumentModalProps) => {
         </DialogHeader>
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-3 p-4 bg-muted rounded-lg">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por número do documento ou cliente..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+        <div className="space-y-4">
+          {/* Search Bar and Semantic Toggle */}
+          <div className="flex flex-col sm:flex-row gap-3 p-4 bg-muted rounded-lg">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por número do documento, cliente ou conteúdo..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            
+            {/* Semantic Search Toggle */}
+            <div className="flex items-center space-x-2 px-3 py-2 bg-background rounded-md border">
+              <Brain className={`w-4 h-4 ${useSemanticSearch ? 'text-blue-500' : 'text-muted-foreground'}`} />
+              <Label htmlFor="semantic-search" className="text-sm font-medium">
+                IA Semântica
+              </Label>
+              <Switch
+                id="semantic-search"
+                checked={useSemanticSearch}
+                onCheckedChange={setUseSemanticSearch}
+                disabled={!searchTerm}
               />
+              {useSemanticSearch && searchTerm && (
+                <Zap className="w-3 h-3 text-yellow-500 animate-pulse" />
+              )}
             </div>
           </div>
           
-          <div className="flex gap-2 flex-wrap">
+          {/* Search Info */}
+          {searchTerm && (
+            <div className="px-4 py-2 bg-blue-50 border border-blue-200 rounded-md">
+              <div className="flex items-center gap-2 text-sm text-blue-700">
+                {useSemanticSearch ? (
+                  <>
+                    <Brain className="w-4 h-4" />
+                    <span><strong>Busca Semântica Ativa:</strong> Usando IA para encontrar documentos por similaridade de conteúdo</span>
+                  </>
+                ) : (
+                  <>
+                    <Search className="w-4 h-4" />
+                    <span><strong>Busca Tradicional:</strong> Buscando por texto exato. Ative a IA Semântica para busca mais inteligente</span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {/* Type Filters */}
+          <div className="flex gap-2 flex-wrap px-4">
             {documentTypes.map((type) => (
               <Button
                 key={type}
@@ -177,7 +178,22 @@ export const DocumentModal = ({ isOpen, onClose }: DocumentModalProps) => {
 
         {/* Documents List */}
         <div className="flex-1 overflow-y-auto space-y-3">
-          {filteredDocuments.map((doc) => {
+          {isLoading && (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-muted-foreground">Carregando documentos...</span>
+            </div>
+          )}
+
+          {error && (
+            <div className="text-center py-8 text-red-500">
+              <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>Erro ao carregar documentos</p>
+              <p className="text-sm">Tente novamente em alguns instantes</p>
+            </div>
+          )}
+
+          {!isLoading && !error && filteredDocuments.map((doc) => {
             const { icon: Icon, color } = getDocumentIcon(doc.type);
             
             return (
@@ -197,6 +213,12 @@ export const DocumentModal = ({ isOpen, onClose }: DocumentModalProps) => {
                         <Badge className={getStatusColor(doc.status)}>
                           {doc.status}
                         </Badge>
+                        {useSemanticSearch && doc.similarity_score && (
+                          <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                            <Brain className="w-3 h-3 mr-1" />
+                            {(doc.similarity_score * 100).toFixed(1)}% relevante
+                          </Badge>
+                        )}
                       </div>
                       
                       <p className="text-sm text-muted-foreground mb-2">{doc.client}</p>
@@ -208,12 +230,14 @@ export const DocumentModal = ({ isOpen, onClose }: DocumentModalProps) => {
                         </div>
                         <div className="flex items-center space-x-1">
                           <Calendar className="w-3 h-3" />
-                          <span>{new Date(doc.date).toLocaleDateString('pt-BR')}</span>
+                          <span>{new Date(doc.date || doc.created_at || doc.upload_date).toLocaleDateString('pt-BR')}</span>
                         </div>
-                        <div className="flex items-center space-x-1">
-                          <Truck className="w-3 h-3" />
-                          <span>{doc.carrier}</span>
-                        </div>
+                        {doc.carrier && (
+                          <div className="flex items-center space-x-1">
+                            <Truck className="w-3 h-3" />
+                            <span>{doc.carrier}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -227,7 +251,7 @@ export const DocumentModal = ({ isOpen, onClose }: DocumentModalProps) => {
             );
           })}
           
-          {filteredDocuments.length === 0 && (
+          {!isLoading && !error && filteredDocuments.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
               <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p>Nenhum documento encontrado</p>

@@ -28,6 +28,24 @@ class AgentStatus(str, Enum):
     FORBIDDEN = "forbidden"
 
 
+class DocumentVersionType(str, Enum):
+    """Tipos de versionamento de documentos"""
+    MAJOR = "major"          # Mudança significativa (1.0 -> 2.0)
+    MINOR = "minor"          # Mudança menor (1.0 -> 1.1)
+    REVISION = "revision"    # Correção/revisão (1.0 -> 1.0.1)
+    AUTO = "auto"           # Versionamento automático do sistema
+
+
+class ApprovalStatus(str, Enum):
+    """Status de aprovação de documentos"""
+    PENDING = "pending"              # Aguardando aprovação
+    APPROVED = "approved"            # Aprovado
+    REJECTED = "rejected"            # Rejeitado
+    NEEDS_REVISION = "needs_revision" # Precisa de revisão
+    ON_HOLD = "on_hold"             # Em espera
+    WITHDRAWN = "withdrawn"          # Retirado pelo autor
+
+
 class AuthStatus(str, Enum):
     """Status de autenticação"""
     AUTHENTICATED = "authenticated"
@@ -136,6 +154,86 @@ class ErrorResponse(BaseModel):
 
 # Database Models usando Beanie (MongoDB ODM)
 
+class DocumentVersion(Document):
+    """Modelo para controle de versões de documentos"""
+    # Identificação da versão
+    version_id: str = Field(default_factory=lambda: str(uuid4()), unique=True)
+    parent_document_id: str = Field(..., description="ID do documento original")
+    
+    # Informações da versão
+    version_number: str = Field(..., description="Número da versão (ex: 1.0, 1.1, 2.0)")
+    version_type: DocumentVersionType = Field(..., description="Tipo de versionamento")
+    version_notes: Optional[str] = Field(None, description="Notas sobre as mudanças")
+    
+    # Dados da versão (snapshot do documento neste momento)
+    s3_key: str = Field(..., description="Chave do arquivo da versão no S3")
+    s3_url: str = Field(..., description="URL do arquivo da versão")
+    file_hash: Optional[str] = Field(None, description="Hash MD5/SHA256 do arquivo")
+    
+    # Metadados da versão
+    created_by: str = Field(..., description="Usuário que criou esta versão")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    is_current: bool = Field(default=False, description="Se é a versão atual")
+    is_published: bool = Field(default=False, description="Se foi publicada")
+    
+    # Dados técnicos
+    text_content: Optional[str] = Field(None, description="Texto extraído desta versão")
+    embedding: Optional[List[float]] = Field(None, description="Embedding desta versão")
+    processing_status: ProcessingStatus = Field(default=ProcessingStatus.UPLOADED)
+    
+    class Settings:
+        name = "document_versions"
+
+
+class DocumentApproval(Document):
+    """Modelo para controle de aprovação de documentos"""
+    # Identificação
+    approval_id: str = Field(default_factory=lambda: str(uuid4()), unique=True)
+    document_id: str = Field(..., description="ID do documento sendo aprovado")
+    version_id: Optional[str] = Field(None, description="ID da versão específica (se aplicável)")
+    
+    # Status e fluxo
+    status: ApprovalStatus = Field(default=ApprovalStatus.PENDING)
+    approval_level: int = Field(default=1, description="Nível de aprovação (1, 2, 3...)")
+    required_approvers: List[str] = Field(default_factory=list, description="Lista de aprovadores obrigatórios")
+    
+    # Histórico de aprovações
+    approvals: List[Dict[str, Any]] = Field(default_factory=list, description="Lista de aprovações/rejeições")
+    current_approver: Optional[str] = Field(None, description="Aprovador atual")
+    
+    # Prazos e notificações
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    due_date: Optional[datetime] = Field(None, description="Prazo para aprovação")
+    escalation_date: Optional[datetime] = Field(None, description="Data de escalação")
+    
+    # Comentários e feedback
+    comments: List[Dict[str, Any]] = Field(default_factory=list, description="Comentários do processo")
+    approval_criteria: Optional[str] = Field(None, description="Critérios de aprovação")
+    
+    class Settings:
+        name = "document_approvals"
+        
+    def add_approval(self, approver_id: str, decision: ApprovalStatus, comments: Optional[str] = None):
+        """Adiciona uma decisão de aprovação"""
+        approval_record = {
+            "approver_id": approver_id,
+            "decision": decision.value,
+            "comments": comments,
+            "timestamp": datetime.utcnow().isoformat(),
+            "approval_level": self.approval_level
+        }
+        self.approvals.append(approval_record)
+        
+        # Atualizar status geral baseado na decisão
+        if decision == ApprovalStatus.APPROVED:
+            # Verificar se todos os aprovadores obrigatórios aprovaram
+            approved_by = {a["approver_id"] for a in self.approvals if a["decision"] == "approved"}
+            if all(req_approver in approved_by for req_approver in self.required_approvers):
+                self.status = ApprovalStatus.APPROVED
+        elif decision in [ApprovalStatus.REJECTED, ApprovalStatus.NEEDS_REVISION]:
+            self.status = decision
+
+
 class DocumentFile(Document):
     """Modelo expandido para qualquer arquivo enviado via upload com capacidades de IA."""
     # Identificação básica
@@ -206,6 +304,100 @@ class DocumentFile(Document):
         self.processing_status = ProcessingStatus.ERROR
         self.error_details = error_message
         self.add_processing_log(f"Erro: {error_message}")
+    
+    # Métodos de versionamento
+    current_version: str = Field(default="1.0", description="Versão atual do documento")
+    version_count: int = Field(default=1, description="Número total de versões")
+    is_versioned: bool = Field(default=True, description="Se o documento suporta versionamento")
+    
+    # Relacionamentos com versões e aprovações
+    approval_status: ApprovalStatus = Field(default=ApprovalStatus.PENDING, description="Status de aprovação atual")
+    requires_approval: bool = Field(default=False, description="Se o documento requer aprovação")
+    approved_by: List[str] = Field(default_factory=list, description="Lista de aprovadores")
+    approved_at: Optional[datetime] = Field(None, description="Data da aprovação")
+    
+    # Controle de versões
+    def create_new_version(self, version_type: DocumentVersionType, created_by: str, 
+                          version_notes: Optional[str] = None, new_s3_key: Optional[str] = None) -> str:
+        """Cria uma nova versão do documento"""
+        import re
+        
+        # Calcular novo número de versão
+        current_parts = self.current_version.split('.')
+        major, minor = int(current_parts[0]), int(current_parts[1]) if len(current_parts) > 1 else 0
+        revision = int(current_parts[2]) if len(current_parts) > 2 else 0
+        
+        if version_type == DocumentVersionType.MAJOR:
+            new_version = f"{major + 1}.0"
+        elif version_type == DocumentVersionType.MINOR:
+            new_version = f"{major}.{minor + 1}"
+        elif version_type == DocumentVersionType.REVISION:
+            new_version = f"{major}.{minor}.{revision + 1}"
+        else:  # AUTO
+            new_version = f"{major}.{minor}.{revision + 1}"
+        
+        # Criar registro de versão (será salvo separadamente)
+        version_data = {
+            "parent_document_id": str(self.id),
+            "version_number": new_version,
+            "version_type": version_type,
+            "version_notes": version_notes,
+            "s3_key": new_s3_key or self.s3_key,
+            "s3_url": self.s3_url,
+            "created_by": created_by,
+            "text_content": self.text_content,
+            "embedding": self.embedding,
+            "processing_status": self.processing_status,
+            "is_current": True
+        }
+        
+        # Atualizar documento principal
+        self.current_version = new_version
+        self.version_count += 1
+        self.add_processing_log(f"Nova versão {new_version} criada por {created_by}")
+        
+        return new_version
+    
+    def request_approval(self, required_approvers: List[str], approval_level: int = 1, 
+                        due_date: Optional[datetime] = None, criteria: Optional[str] = None):
+        """Solicita aprovação do documento"""
+        self.approval_status = ApprovalStatus.PENDING
+        self.requires_approval = True
+        self.add_processing_log(f"Aprovação solicitada para: {', '.join(required_approvers)}")
+        
+        # Retorna dados para criar DocumentApproval separadamente
+        return {
+            "document_id": str(self.id),
+            "version_id": None,  # Se for versão específica
+            "required_approvers": required_approvers,
+            "approval_level": approval_level,
+            "due_date": due_date,
+            "approval_criteria": criteria
+        }
+    
+    def approve_document(self, approver_id: str, comments: Optional[str] = None):
+        """Aprova o documento"""
+        self.approval_status = ApprovalStatus.APPROVED
+        if approver_id not in self.approved_by:
+            self.approved_by.append(approver_id)
+        self.approved_at = datetime.utcnow()
+        self.add_processing_log(f"Documento aprovado por {approver_id}")
+    
+    def reject_document(self, approver_id: str, reason: str):
+        """Rejeita o documento"""
+        self.approval_status = ApprovalStatus.REJECTED
+        self.add_processing_log(f"Documento rejeitado por {approver_id}: {reason}")
+    
+    def get_version_history(self) -> Dict[str, Any]:
+        """Retorna histórico simplificado de versões"""
+        return {
+            "current_version": self.current_version,
+            "version_count": self.version_count,
+            "approval_status": self.approval_status.value,
+            "requires_approval": self.requires_approval,
+            "approved_by": self.approved_by,
+            "approved_at": self.approved_at.isoformat() if self.approved_at else None
+        }
 
 class Order(Document):
     """Super-contêiner: Nó central que representa uma Ordem de Serviço ou Operação Logística completa."""
