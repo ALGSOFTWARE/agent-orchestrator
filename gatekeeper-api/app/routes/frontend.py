@@ -529,7 +529,8 @@ async def upload_document(
             text_content=text_content,
             embedding=embedding,
             embedding_model=embedding_model,
-            processing_status=ProcessingStatus.INDEXED if embedding else ProcessingStatus.UPLOADED
+            processing_status=ProcessingStatus.INDEXED if embedding else ProcessingStatus.UPLOADED,
+            binary_data_base64=__import__('base64').b64encode(file_content).decode('utf-8')  # Armazenar dados binários em base64
         )
         
         # Salvar no MongoDB
@@ -562,7 +563,9 @@ async def upload_document(
         }
         
     except Exception as e:
-        print(f"❌ Erro no upload: {e}")
+        import traceback
+        error_msg = f"Erro no upload: {str(e)}\n{traceback.format_exc()}"
+        print(f"❌ {error_msg}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/documents/debug")
@@ -1092,10 +1095,28 @@ async def view_document_proxy(document_id: str):
         if not document:
             raise HTTPException(status_code=404, detail="Documento não encontrado")
         
+        # Prioridade 1: Usar dados binários armazenados no MongoDB para imagens/PDFs
+        if hasattr(document, 'binary_data_base64') and document.binary_data_base64:
+            import base64
+            binary_data = base64.b64decode(document.binary_data_base64)
+            
+            # Para arquivos de imagem, retornar diretamente os dados binários
+            if document.file_extension.lower() in ['.jpg', '.jpeg', '.png', '.gif', '.bmp']:
+                return Response(
+                    content=binary_data,
+                    media_type=document.file_type
+                )
+            # Para PDFs, também retornar diretamente
+            elif document.file_extension.lower() == '.pdf':
+                return Response(
+                    content=binary_data,
+                    media_type=document.file_type
+                )
+        
         # Se o documento foi realmente uploaded (não é synthetic), tentar servir o arquivo
         if document.s3_key and not document.s3_key.startswith('synthetic/'):
             # Para documentos reais, verificar se temos o arquivo localmente ou em S3 real
-            # Por enquanto, retornar o conteúdo de texto extraído como fallback
+            # Por enquanto, retornar o conteúdo de texto extraído como fallback para outros tipos
             if document.text_content:
                 return Response(
                     content=f"""
@@ -1262,8 +1283,23 @@ async def download_document_proxy(document_id: str):
         document.increment_access()
         await document.save()
         
-        # Tentar download via S3
-        if document.s3_url:
+        # Prioridade 1: Usar dados binários armazenados no MongoDB
+        if hasattr(document, 'binary_data_base64') and document.binary_data_base64:
+            import base64
+            binary_data = base64.b64decode(document.binary_data_base64)
+            
+            headers = {
+                'Content-Disposition': f'attachment; filename="{document.original_name}"'
+            }
+            
+            return Response(
+                content=binary_data,
+                media_type=document.file_type,
+                headers=headers
+            )
+        
+        # Prioridade 2: Tentar download via S3 (quando configurado)
+        if document.s3_url and not document.s3_url.startswith('https://s3.amazonaws.com/bucket/'):
             try:
                 async with aiohttp.ClientSession() as session:
                     async with session.get(document.s3_url) as response:

@@ -248,6 +248,9 @@ class DocumentFile(Document):
     size_bytes: int = Field(..., description="Tamanho em bytes")
     category: DocumentCategory = Field(default=DocumentCategory.OTHER, description="Categoria do documento")
     
+    # Dados binários (temporário até S3 ser configurado) - armazenados como base64
+    binary_data_base64: Optional[str] = Field(None, description="Dados binários do arquivo em base64")
+    
     # Timestamps
     uploaded_at: datetime = Field(default_factory=datetime.utcnow)
     last_accessed: Optional[datetime] = None
