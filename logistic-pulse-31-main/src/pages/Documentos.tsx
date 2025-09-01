@@ -477,20 +477,128 @@ const DocumentUploadModal = ({ isOpen, onClose, onUploadSuccess }: {
 };
 
 const DocumentViewer = ({ documento, isOpen, onClose }: { documento: any; isOpen: boolean; onClose: () => void }) => {
+  const getDocumentType = (filename: string): "PDF" | "XML" | "IMAGEM" | "DESCONHECIDO" => {
+    if (!filename) return "DESCONHECIDO";
+    
+    const ext = filename.toLowerCase().split('.').pop();
+    if (ext === 'pdf') return "PDF";
+    if (ext === 'xml') return "XML";
+    if (['jpg', 'jpeg', 'png', 'gif', 'bmp'].includes(ext || '')) return "IMAGEM";
+    return "DESCONHECIDO";
+  };
+
+  const documentType = getDocumentType(documento?.numero || '');
+  const hasValidUrl = documento?.s3_url && documento?.has_valid_s3;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl h-[80vh]">
         <DialogHeader>
-          <DialogTitle>{documento?.numero}</DialogTitle>
-        </DialogHeader>
-        <div className="flex-1 bg-muted rounded-lg flex items-center justify-center">
-          <div className="text-center">
-            <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-muted-foreground">Visualização do documento</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Integração com visualizador PDF seria implementada aqui
-            </p>
+          <div className="flex items-center justify-between">
+            <DialogTitle>{documento?.numero}</DialogTitle>
+            {hasValidUrl && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleDownload(documento)}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download
+              </Button>
+            )}
           </div>
+          {documento && (
+            <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+              <span>Cliente: {documento.cliente}</span>
+              <span>Status: {documento.status}</span>
+              {documento.current_version && <span>Versão: {documento.current_version}</span>}
+            </div>
+          )}
+        </DialogHeader>
+        
+        <div className="flex-1 bg-muted rounded-lg overflow-hidden">
+          {!hasValidUrl ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center">
+                <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-muted-foreground">Arquivo não disponível</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  O documento não possui URL válida para visualização
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="h-full">
+              {documentType === "PDF" && (
+                <iframe
+                  src={documento.s3_url}
+                  title={documento.numero}
+                  className="w-full h-full rounded border-0"
+                  style={{ minHeight: '400px' }}
+                  onError={() => {
+                    console.log('Erro ao carregar PDF:', documento.s3_url);
+                  }}
+                />
+              )}
+              {documentType === "XML" && (
+                <iframe
+                  src={documento.s3_url}
+                  title={documento.numero}
+                  className="w-full h-full rounded border-0 bg-white"
+                  style={{ minHeight: '400px' }}
+                  onError={() => {
+                    console.log('Erro ao carregar XML:', documento.s3_url);
+                  }}
+                />
+              )}
+              {documentType === "IMAGEM" && (
+                <div className="h-full flex items-center justify-center p-4">
+                  <img
+                    src={documento.s3_url}
+                    alt={documento.numero}
+                    className="max-h-full max-w-full rounded shadow-lg object-contain"
+                    onError={(e) => {
+                      console.log('Erro ao carregar imagem:', documento.s3_url);
+                      // Mostrar mensagem de erro na própria imagem
+                      (e.target as HTMLImageElement).style.display = 'none';
+                      const parent = (e.target as HTMLImageElement).parentElement;
+                      if (parent && !parent.querySelector('.error-message')) {
+                        parent.innerHTML = `
+                          <div class="error-message text-center">
+                            <div class="h-16 w-16 mx-auto mb-4 flex items-center justify-center bg-muted rounded">
+                              <svg class="h-8 w-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                              </svg>
+                            </div>
+                            <p class="text-muted-foreground">Arquivo não pôde ser carregado</p>
+                            <p class="text-sm text-muted-foreground mt-2">Use o botão Download para tentar baixar</p>
+                          </div>
+                        `;
+                      }
+                    }}
+                  />
+                </div>
+              )}
+              {documentType === "DESCONHECIDO" && (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center">
+                    <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                    <p className="text-muted-foreground">Tipo de arquivo não suportado para visualização</p>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Use o botão Download para baixar o arquivo
+                    </p>
+                    <Button
+                      className="mt-4"
+                      onClick={() => handleDownload(documento)}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download Arquivo
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -534,11 +642,18 @@ export default function Documentos() {
           dataEmissao: doc.date,
           status: doc.status,
           tamanho: doc.size,
-          versao: 1,
+          versao: doc.current_version || doc.version_count || 1,
           uploadPor: "Sistema",
           origem_upload: "api",
           visualizacoes: 0,
-          ultimaVisualizacao: doc.date
+          ultimaVisualizacao: doc.date,
+          // Incluir dados reais do S3
+          s3_url: doc.s3_url,
+          s3_key: doc.s3_key,
+          has_valid_s3: doc.has_valid_s3,
+          current_version: doc.current_version,
+          version_count: doc.version_count,
+          approval_status: doc.approval_status
         }));
         
         setDocumentosReais(documentosFormatados);
@@ -570,16 +685,63 @@ export default function Documentos() {
     return matchFiltro && matchTipo && matchStatus && matchOrigem;
   });
 
-  const handleDownload = (doc: any) => {
-    toast({
-      title: "Download Iniciado",
-      description: `Baixando ${doc.numero}...`,
-    });
+  const handleDownload = async (doc: any) => {
+    try {
+      if (!doc.s3_url || !doc.has_valid_s3) {
+        throw new Error('Arquivo não disponível para download');
+      }
+
+      toast({
+        title: "Download Iniciado",
+        description: `Baixando ${doc.numero}...`,
+      });
+
+      // Criar link temporário para download
+      const link = document.createElement('a');
+      link.href = doc.s3_url;
+      link.download = doc.numero;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "Download Concluído",
+        description: `${doc.numero} baixado com sucesso!`,
+      });
+
+    } catch (error) {
+      console.error('Erro no download:', error);
+      toast({
+        title: "Erro no Download",
+        description: error instanceof Error ? error.message : "Não foi possível baixar o documento.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleView = (doc: any) => {
-    setDocumentoSelecionado(doc);
-    setViewerOpen(true);
+  const handleView = async (doc: any) => {
+    try {
+      // Documento já tem todos os dados necessários incluindo URL do S3
+      setDocumentoSelecionado(doc);
+      setViewerOpen(true);
+      
+      // Incrementar contador de visualizações (opcional)
+      if (doc.id) {
+        fetch(`http://localhost:8001/files/${doc.id}/increment-access`, {
+          method: 'POST'
+        }).catch(err => console.log('Erro ao incrementar acesso:', err));
+      }
+      
+    } catch (error) {
+      console.error('Erro ao abrir documento:', error);
+      toast({
+        title: "Erro ao Visualizar",
+        description: "Não foi possível abrir o documento.",
+        variant: "destructive"
+      });
+    }
   };
 
   const estatisticas = {
@@ -743,8 +905,13 @@ export default function Documentos() {
                               {doc.status}
                             </Badge>
                             <Badge variant="outline" className="text-xs">
-                              v{doc.versao}
+                              v{doc.current_version || doc.versao}
                             </Badge>
+                            {doc.version_count && doc.version_count > 1 && (
+                              <Badge variant="secondary" className="text-xs">
+                                {doc.version_count} versões
+                              </Badge>
+                            )}
                           </div>
                           
                           <p className="text-sm text-muted-foreground mb-2">{doc.cliente}</p>
