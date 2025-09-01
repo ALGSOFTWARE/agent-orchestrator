@@ -1,4 +1,5 @@
 import { useState } from "react";
+import * as React from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -152,10 +153,64 @@ const getOrigemIcon = (origem: string) => {
   }
 };
 
-const DocumentUploadModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+const DocumentUploadModal = ({ isOpen, onClose, onUploadSuccess }: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  onUploadSuccess?: () => void;
+}) => {
   const { toast } = useToast();
   const [uploadMethod, setUploadMethod] = useState("manual");
   const [dragActive, setDragActive] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<string>("");
+  const [orders, setOrders] = useState<any[]>([]);
+  const [orderSearch, setOrderSearch] = useState("");
+  const [loadingOrders, setLoadingOrders] = useState(false);
+
+  // Carregar Orders quando o modal abre
+  React.useEffect(() => {
+    if (isOpen) {
+      loadOrders();
+    }
+  }, [isOpen]);
+
+  const loadOrders = async () => {
+    setLoadingOrders(true);
+    try {
+      const searchParam = orderSearch ? `?search=${encodeURIComponent(orderSearch)}` : '';
+      const response = await fetch(`http://localhost:8001/api/frontend/orders${searchParam}`);
+      const result = await response.json();
+      
+      if (result.success) {
+        setOrders(result.data);
+      } else {
+        toast({
+          title: "Erro ao carregar Orders",
+          description: "Não foi possível carregar as orders disponíveis",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao buscar orders:', error);
+      toast({
+        title: "Erro de conexão",
+        description: "Verifique se a API está funcionando",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
+
+  // Buscar Orders quando o usuário digita
+  React.useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (isOpen) {
+        loadOrders();
+      }
+    }, 300);
+    
+    return () => clearTimeout(timeoutId);
+  }, [orderSearch, isOpen]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -167,15 +222,106 @@ const DocumentUploadModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: ()
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
     
+    if (!selectedOrder) {
+      toast({
+        title: "Order não selecionada",
+        description: "Selecione uma Order antes de fazer o upload do documento",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const files = Array.from(e.dataTransfer.files);
+    
+    if (files.length === 0) return;
+    
+    // Upload do primeiro arquivo (pode ser expandido para múltiplos arquivos)
+    const file = files[0];
+    await uploadFile(file);
+  };
+
+  const handleFileUpload = () => {
+    if (!selectedOrder) {
+      toast({
+        title: "Order não selecionada",
+        description: "Selecione uma Order antes de fazer o upload do documento",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Criar input file hidden e triggar
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,.png,.jpg,.jpeg,.xml,.txt,.doc,.docx';
+    input.onchange = handleFileSelected;
+    input.click();
+  };
+
+  const handleFileSelected = async (e: Event) => {
+    const target = e.target as HTMLInputElement;
+    const file = target.files?.[0];
+    
+    if (!file) return;
+    
+    await uploadFile(file);
+  };
+
+  const uploadFile = async (file: File) => {
+    if (!selectedOrder) return;
+    
+    const selectedOrderData = orders.find(o => o.id === selectedOrder);
+    
+    // Mostrar toast de início
     toast({
-      title: "Upload Simulado",
-      description: "Arquivo enviado com sucesso! IA identificou: CT-e",
+      title: "Processando documento...",
+      description: `Enviando ${file.name} para Order ${selectedOrderData?.order_number}`,
     });
+    
+    try {
+      // Criar FormData
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('order_id', selectedOrder);
+      formData.append('user_id', 'frontend-user');
+      
+      // Fazer upload
+      const response = await fetch('http://localhost:8001/api/frontend/documents/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: "Upload concluído!",
+          description: `${file.name} processado com sucesso. Categoria: ${result.data.category}${result.data.embedding_generated ? ', Embeddings gerados' : ''}`,
+        });
+        
+        // Recarregar documentos e fechar modal após sucesso
+        if (onUploadSuccess) {
+          onUploadSuccess();
+        }
+        setTimeout(() => {
+          onClose();
+        }, 2000);
+      } else {
+        throw new Error(result.message || 'Erro no upload');
+      }
+    } catch (error) {
+      console.error('Erro no upload:', error);
+      toast({
+        title: "Erro no upload",
+        description: `Falha ao processar ${file.name}. Tente novamente.`,
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -184,6 +330,59 @@ const DocumentUploadModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: ()
         <DialogHeader>
           <DialogTitle>Upload de Documentos</DialogTitle>
         </DialogHeader>
+        
+        {/* Seletor de Order */}
+        <div className="space-y-3 p-4 bg-muted rounded-lg">
+          <div className="flex items-center gap-2">
+            <Package className="h-4 w-4 text-primary" />
+            <h4 className="font-medium">Associar à Order</h4>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Todo documento deve estar associado a uma Order. Busque e selecione a Order correspondente.
+          </p>
+          
+          <div className="space-y-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por ID, cliente ou título da Order..."
+                value={orderSearch}
+                onChange={(e) => setOrderSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            
+            <Select value={selectedOrder} onValueChange={setSelectedOrder}>
+              <SelectTrigger>
+                <SelectValue placeholder={loadingOrders ? "Carregando Orders..." : "Selecione uma Order"} />
+              </SelectTrigger>
+              <SelectContent>
+                {orders.map((order) => (
+                  <SelectItem key={order.id} value={order.id}>
+                    <div className="flex flex-col text-left">
+                      <span className="font-medium">{order.order_number}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {order.customer_name} • {order.origin} → {order.destination}
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+                {orders.length === 0 && !loadingOrders && (
+                  <SelectItem value="" disabled>
+                    Nenhuma Order encontrada
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            
+            {selectedOrder && (
+              <div className="p-2 bg-primary/10 rounded text-sm">
+                <span className="text-primary font-medium">Order selecionada:</span>{" "}
+                {orders.find(o => o.id === selectedOrder)?.order_number}
+              </div>
+            )}
+          </div>
+        </div>
         
         <Tabs value={uploadMethod} onValueChange={setUploadMethod}>
           <TabsList className="grid grid-cols-4 mb-4">
@@ -222,7 +421,13 @@ const DocumentUploadModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: ()
               <p className="text-sm text-muted-foreground mt-2">
                 Formatos suportados: PDF, PNG, JPG, XML (máx. 10MB)
               </p>
-              <Button className="mt-4">Selecionar Arquivos</Button>
+              <Button 
+                className="mt-4" 
+                onClick={handleFileUpload}
+                disabled={!selectedOrder}
+              >
+                Selecionar Arquivos
+              </Button>
             </div>
             <div className="text-sm text-muted-foreground bg-muted p-3 rounded">
               <strong>IA Automática:</strong> Nosso sistema identificará automaticamente o tipo de documento e o associará à jornada correta.
@@ -300,9 +505,62 @@ export default function Documentos() {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [documentoSelecionado, setDocumentoSelecionado] = useState(null);
+  const [documentosReais, setDocumentosReais] = useState<any[]>([]);
+  const [carregandoDocumentos, setCarregandoDocumentos] = useState(true);
   const { toast } = useToast();
 
-  const documentosFiltrados = documentosData.filter(doc => {
+  // Carregar documentos reais quando componente monta
+  React.useEffect(() => {
+    carregarDocumentos();
+  }, []);
+
+  const carregarDocumentos = async () => {
+    setCarregandoDocumentos(true);
+    try {
+      const response = await fetch('http://localhost:8001/api/frontend/documents');
+      const result = await response.json();
+      
+      if (result.success || result.data) {
+        // Converter formato da API para formato do frontend
+        const documentosFormatados = (result.data || []).map((doc: any) => ({
+          id: doc.id,
+          numero: doc.number,
+          tipo: doc.type === 'CTE' ? 'CT-e' : doc.type === 'INVOICE' ? 'NF-e' : doc.type,
+          cliente: doc.client,
+          jornada: doc.order_id?.substring(0, 8) || "N/A",
+          origem: doc.origin,
+          destino: doc.destination,
+          dataUpload: doc.date,
+          dataEmissao: doc.date,
+          status: doc.status,
+          tamanho: doc.size,
+          versao: 1,
+          uploadPor: "Sistema",
+          origem_upload: "api",
+          visualizacoes: 0,
+          ultimaVisualizacao: doc.date
+        }));
+        
+        setDocumentosReais(documentosFormatados);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar documentos:', error);
+      toast({
+        title: "Erro ao carregar documentos",
+        description: "Usando dados de exemplo",
+        variant: "destructive"
+      });
+      // Em caso de erro, usar dados mock
+      setDocumentosReais([]);
+    } finally {
+      setCarregandoDocumentos(false);
+    }
+  };
+
+  // Usar documentos reais se disponíveis, senão usar mock
+  const todosDocumentos = documentosReais.length > 0 ? documentosReais : documentosData;
+
+  const documentosFiltrados = todosDocumentos.filter(doc => {
     const matchFiltro = doc.numero.toLowerCase().includes(filtro.toLowerCase()) ||
                        doc.cliente.toLowerCase().includes(filtro.toLowerCase());
     const matchTipo = tipoFiltro === "todos" || doc.tipo === tipoFiltro;
@@ -325,10 +583,10 @@ export default function Documentos() {
   };
 
   const estatisticas = {
-    total: documentosData.length,
-    validados: documentosData.filter(d => d.status === "Validado").length,
-    pendentes: documentosData.filter(d => d.status === "Pendente Validação").length,
-    rejeitados: documentosData.filter(d => d.status === "Rejeitado").length,
+    total: todosDocumentos.length,
+    validados: todosDocumentos.filter(d => d.status === "Validado").length,
+    pendentes: todosDocumentos.filter(d => d.status === "Pendente Validação").length,
+    rejeitados: todosDocumentos.filter(d => d.status === "Rejeitado").length,
   };
 
   return (
@@ -552,7 +810,8 @@ export default function Documentos() {
         {/* Modals */}
         <DocumentUploadModal 
           isOpen={uploadModalOpen} 
-          onClose={() => setUploadModalOpen(false)} 
+          onClose={() => setUploadModalOpen(false)}
+          onUploadSuccess={carregarDocumentos}
         />
         
         <DocumentViewer
