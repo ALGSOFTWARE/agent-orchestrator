@@ -101,6 +101,44 @@ class Endereco:
     longitude: Optional[float] = None
 
 @strawberry.type
+class CTe:
+    """Conhecimento de Transporte Eletrônico"""
+    numero: str
+    status: str
+    origem: str
+    destino: str
+    data_emissao: datetime
+    valor: float
+    transportadora: str
+
+@strawberry.input
+class CTeInput:
+    """Input para CTe"""
+    numero: str
+    origem: str
+    destino: str
+    valor: float
+    transportadora: str
+
+@strawberry.type
+class BL:
+    """Bill of Lading"""
+    numero: str
+    status: str
+    origem: str
+    destino: str
+    data_emissao: datetime
+    transportadora: str
+
+@strawberry.input
+class BLInput:
+    """Input para BL"""
+    numero: str
+    origem: str
+    destino: str
+    transportadora: str
+
+@strawberry.type
 class Transportadora:
     """Dados da transportadora"""
     nome: str

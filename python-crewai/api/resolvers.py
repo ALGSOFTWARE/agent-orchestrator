@@ -8,6 +8,7 @@ from typing import List, Optional
 import json
 import strawberry
 from strawberry.types import Info
+from .schemas import *
 
 # from database.db_manager import get_database  # Legacy - usando MongoDB Atlas via Gatekeeper API
 
