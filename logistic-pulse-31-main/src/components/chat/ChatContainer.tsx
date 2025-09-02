@@ -40,100 +40,22 @@ export const ChatContainer = () => {
   
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: "1",
+      id: "welcome",
       type: "system",
-      content: `Olá ${userProfile.name}, vejo que você é ${userProfile.role} da ${userProfile.company}. Bem-vindo ao Smart Tracking Chat! 
+      content: `Olá ${userProfile.name}! Bem-vindo ao Chat Inteligente.
 
 Posso te ajudar a:
-• Consultar documentos logísticos (CT-e, NF-e, BL, Manifesto)
+• Consultar documentos logísticos
 • Verificar status de cargas e entregas
-• Localizar documentos por número de embarque
+• Buscar informações específicas
 • Esclarecer dúvidas sobre suas operações
 
 Como posso ajudá-lo hoje?`,
-      timestamp: new Date(Date.now() - 60000),
-    },
-    {
-      id: "2",
-      type: "user",
-      content: "Gostaria de consultar o CT-e da carga ABC123",
-      timestamp: new Date(Date.now() - 45000),
-    },
-    {
-      id: "3",
-      type: "agent",
-      content: "Encontrei o CT-e da carga ABC123. O documento está anexado e disponível para download. Status atual: Em trânsito para São Paulo.",
-      timestamp: new Date(Date.now() - 30000),
-      attachments: [
-        {
-          type: "CTE",
-          name: "CTE-ABC123-2024.pdf",
-          url: "#"
-        }
-      ]
-    },
-    {
-      id: "4",
-      type: "user",
-      content: "Preciso consultar alguns documentos específicos",
-      timestamp: new Date(Date.now() - 15000),
-    },
-    {
-      id: "5",
-      type: "agent",
-      content: "Claro! Você pode usar nossa consulta rápida de documentos. Clique no botão abaixo para acessar todos os tipos de documentos disponíveis.",
-      timestamp: new Date(Date.now() - 5000),
+      timestamp: new Date(),
     }
   ]);
 
-  // Mock data para demonstração
-  const mockDocuments = [
-    {
-      id: "doc-1",
-      type: "CTE" as DocumentType,
-      number: "CTE-ABC123-2024",
-      status: "Processado" as const,
-      client: "Mercosul Line",
-      embarque: "EMB-2024-001",
-      rota: {
-        origem: "São Paulo - SP",
-        destino: "Porto Alegre - RS", 
-        status: "Em trânsito",
-        proximaParada: "Curitiba - PR"
-      },
-      dataRecebimento: new Date(Date.now() - 86400000),
-      arquivo: {
-        nome: "CTE-ABC123-2024.pdf",
-        tamanho: "245 KB",
-        url: "#"
-      },
-      historico: [
-        {
-          data: new Date(Date.now() - 86400000),
-          acao: "Documento recebido via API",
-          usuario: "Sistema Automatizado"
-        },
-        {
-          data: new Date(Date.now() - 82800000),
-          acao: "Documento validado",
-          usuario: "Ana Silva"
-        }
-      ],
-      metadados: {
-        transportadora: "Expresso Logística",
-        valor: "R$ 2.450,00",
-        peso: "1.250 kg"
-      }
-    }
-  ];
-
-  const findDocument = (query: string): any | null => {
-    return mockDocuments.find(doc => 
-      doc.number.toLowerCase().includes(query.toLowerCase()) ||
-      doc.embarque.toLowerCase().includes(query.toLowerCase()) ||
-      query.toLowerCase().includes(doc.number.toLowerCase().split('-')[1])
-    );
-  };
+  // Documentos serão buscados via API real quando necessário
 
   const handleSendMessage = async (content: string) => {
     const newMessage: Message = {
