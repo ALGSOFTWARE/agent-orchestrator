@@ -292,21 +292,20 @@ const DocumentUploadModal = ({ isOpen, onClose, onUploadSuccess }: {
       // Criar FormData
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('order_id', selectedOrder);
-      formData.append('user_id', 'frontend-user');
       
-      // Fazer upload
-      const response = await fetch('http://localhost:8001/api/frontend/documents/upload', {
+      // Fazer upload para S3 real usando endpoint /files/upload
+      const response = await fetch(`http://localhost:8001/files/upload?order_id=${selectedOrder}&public=false`, {
         method: 'POST',
         body: formData,
       });
       
       const result = await response.json();
       
-      if (result.success) {
+      if (response.ok && result.id) {
+        // Sucesso - endpoint /files/upload retorna estrutura diferente
         toast({
           title: "Upload concluído!",
-          description: `${file.name} processado com sucesso. Categoria: ${result.data.category}${result.data.embedding_generated ? ', Embeddings gerados' : ''}`,
+          description: `${file.name} enviado para S3. Categoria: ${result.category}, Processamento: ${result.processing_status}`,
         });
         
         // Recarregar documentos e fechar modal após sucesso
@@ -317,7 +316,7 @@ const DocumentUploadModal = ({ isOpen, onClose, onUploadSuccess }: {
           onClose();
         }, 2000);
       } else {
-        throw new Error(result.message || 'Erro no upload');
+        throw new Error(result.detail || result.message || 'Erro no upload');
       }
     } catch (error) {
       console.error('Erro no upload:', error);
@@ -779,15 +778,23 @@ export default function Documentos() {
   };
 
   const handleViewVersion = (versionId: string) => {
-    const downloadUrl = `http://localhost:8001/api/frontend/documents/versions/${versionId}/view`;
-    window.open(downloadUrl, '_blank');
+    if (!selectedDocumentForVersioning) return;
+    
+    // Use the main document view endpoint instead of version-specific endpoint
+    // since version-specific views are not yet implemented on backend
+    const viewUrl = `http://localhost:8001/api/frontend/documents/${selectedDocumentForVersioning.id}/view`;
+    window.open(viewUrl, '_blank');
   };
 
   const handleDownloadVersion = (versionId: string) => {
-    const downloadUrl = `http://localhost:8001/api/frontend/documents/versions/${versionId}/download`;
+    if (!selectedDocumentForVersioning) return;
+    
+    // Use the main document download endpoint instead of version-specific endpoint
+    // since version-specific downloads are not yet implemented on backend
+    const downloadUrl = `http://localhost:8001/api/frontend/documents/${selectedDocumentForVersioning.id}/download`;
     const link = document.createElement('a');
     link.href = downloadUrl;
-    link.download = `version-${versionId}`;
+    link.download = selectedDocumentForVersioning.numero || `document-${selectedDocumentForVersioning.id}`;
     link.click();
   };
 

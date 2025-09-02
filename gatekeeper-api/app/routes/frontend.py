@@ -1100,57 +1100,34 @@ async def view_document_proxy(document_id: str):
             import base64
             binary_data = base64.b64decode(document.binary_data_base64)
             
+            # Normalize file extension
+            file_ext = document.file_extension.lower() if document.file_extension else ""
+            if not file_ext.startswith('.'):
+                file_ext = '.' + file_ext
+                
             # Para arquivos de imagem, retornar diretamente os dados binários
-            if document.file_extension.lower() in ['.jpg', '.jpeg', '.png', '.gif', '.bmp']:
+            if file_ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp']:
                 return Response(
                     content=binary_data,
                     media_type=document.file_type
                 )
             # Para PDFs, também retornar diretamente
-            elif document.file_extension.lower() == '.pdf':
+            elif file_ext == '.pdf':
                 return Response(
                     content=binary_data,
                     media_type=document.file_type
                 )
         
-        # Se o documento foi realmente uploaded (não é synthetic), tentar servir o arquivo
-        if document.s3_key and not document.s3_key.startswith('synthetic/'):
-            # Para documentos reais, verificar se temos o arquivo localmente ou em S3 real
-            # Por enquanto, retornar o conteúdo de texto extraído como fallback para outros tipos
-            if document.text_content:
-                return Response(
-                    content=f"""
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <title>{document.original_name}</title>
-                        <meta charset="UTF-8">
-                        <style>
-                            body {{ font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }}
-                            .header {{ background: #f5f5f5; padding: 20px; margin-bottom: 20px; border-radius: 5px; }}
-                            .content {{ white-space: pre-wrap; background: white; padding: 20px; border: 1px solid #ddd; }}
-                        </style>
-                    </head>
-                    <body>
-                        <div class="header">
-                            <h1>{document.original_name}</h1>
-                            <p><strong>Categoria:</strong> {document.category}</p>
-                            <p><strong>Tamanho:</strong> {document.size_bytes} bytes</p>
-                            <p><strong>Status:</strong> {document.processing_status}</p>
-                            <p><strong>Upload:</strong> {document.uploaded_at}</p>
-                        </div>
-                        <div class="content">{document.text_content}</div>
-                    </body>
-                    </html>
-                    """,
-                    media_type="text/html"
-                )
-        
-        # Para documentos S3, tentar acessar com presigned URL
-        if document.s3_url:
-            try:
-                # Para URLs S3 reais, gerar presigned URL
-                if 's3.amazonaws.com' in document.s3_url or 's3.' in document.s3_url:
+        # Prioridade 2: Para documentos S3 com arquivos binários, mostrar arquivo real
+        if document.s3_url and 'amazonaws.com' in document.s3_url:
+            binary_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.pdf', '.doc', '.docx', '.xls', '.xlsx']
+            # Normalize file extension to include dot if missing
+            file_ext = document.file_extension.lower() if document.file_extension else ""
+            if not file_ext.startswith('.'):
+                file_ext = '.' + file_ext
+            if document.file_extension and file_ext in binary_extensions:
+                # Para arquivos binários, ir direto para seção S3
+                try:
                     import boto3
                     import os
                     from botocore.exceptions import NoCredentialsError
@@ -1183,20 +1160,41 @@ async def view_document_proxy(document_id: str):
                                     content_type = response.headers.get('content-type', 'application/octet-stream')
                                     return Response(content=content, media_type=content_type)
                     except (NoCredentialsError, Exception) as e:
-                        print(f"Erro ao acessar S3: {e}")
-                        
-                # Fallback: tentar URL direta
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(document.s3_url) as response:
-                        if response.status == 200:
-                            content = await response.read()
-                            content_type = response.headers.get('content-type', 'application/octet-stream')
-                            return Response(content=content, media_type=content_type)
-                        else:
-                            # S3 não acessível, retornar documento HTML com informações
-                            raise HTTPException(status_code=404, detail="Arquivo não acessível no S3")
-            except Exception as e:
-                print(f"Erro ao acessar S3: {e}")
+                        pass  # Fall through to HTML fallback
+                except Exception as e:
+                    pass  # Fall through to HTML fallback
+            
+        # Se o documento foi realmente uploaded (não é synthetic), mas não é binário, mostrar fallback
+        if document.s3_key and not document.s3_key.startswith('synthetic/'):
+            # Para outros tipos, retornar o conteúdo de texto extraído como fallback  
+            if document.text_content:
+                return Response(
+                    content=f"""
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>{document.original_name}</title>
+                        <meta charset="UTF-8">
+                        <style>
+                            body {{ font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }}
+                            .header {{ background: #f5f5f5; padding: 20px; margin-bottom: 20px; border-radius: 5px; }}
+                            .content {{ white-space: pre-wrap; background: white; padding: 20px; border: 1px solid #ddd; }}
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header">
+                            <h1>{document.original_name}</h1>
+                            <p><strong>Categoria:</strong> {document.category}</p>
+                            <p><strong>Tamanho:</strong> {document.size_bytes} bytes</p>
+                            <p><strong>Status:</strong> {document.processing_status}</p>
+                            <p><strong>Upload:</strong> {document.uploaded_at}</p>
+                        </div>
+                        <div class="content">{document.text_content}</div>
+                    </body>
+                    </html>
+                    """,
+                    media_type="text/html"
+                )
         
         # Fallback: retornar página HTML com informações do documento
         return Response(
