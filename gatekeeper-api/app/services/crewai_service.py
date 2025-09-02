@@ -108,7 +108,8 @@ class CrewAIService:
         self, 
         agent_name: str, 
         message: str, 
-        user_context: Dict[str, Any]
+        user_context: Dict[str, Any],
+        session_id: str = None
     ) -> Dict[str, Any]:
         """
         Envia mensagem específica para um agente
@@ -124,7 +125,8 @@ class CrewAIService:
         request_data = {
             "type": "user_message",
             "message": message,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "session_id": session_id
         }
         
         return await self.route_to_agent(agent_name, user_context, request_data)

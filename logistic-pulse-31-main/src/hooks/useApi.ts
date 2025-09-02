@@ -53,10 +53,11 @@ export const useDashboardKPIs = (userId: string) => {
 // Hook para enviar mensagem do chat
 export const useChatMessage = () => {
   return useMutation({
-    mutationFn: async ({ message, userContext }: { message: string; userContext: any }) => {
+    mutationFn: async ({ message, userContext, sessionId }: { message: string; userContext: any; sessionId?: string }) => {
       const { data } = await api.post('/chat/message', {
         message,
-        user_context: userContext
+        user_context: userContext,
+        session_id: sessionId
       });
       return data.data;
     },
@@ -72,5 +73,20 @@ export const useUploadDocument = () => {
       });
       return data.data;
     },
+  });
+};
+
+// Hook para buscar ações inteligentes
+export const useSmartActions = (userContext: any) => {
+  return useQuery({
+    queryKey: ['smart-actions', userContext],
+    queryFn: async () => {
+      const { data } = await api.post('/chat/smart-actions', {
+        user_context: userContext
+      });
+      return data.data;
+    },
+    staleTime: 2 * 60 * 1000, // 2 minutos
+    enabled: !!userContext, // Só executa se houver contexto do usuário
   });
 };

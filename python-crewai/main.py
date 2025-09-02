@@ -6,12 +6,13 @@ Serves as interface for the chat integration
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import logging
 import httpx
 import asyncio
 from llm_router import generate_llm_response, TaskType, LLMProvider
+import uuid
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -26,10 +27,95 @@ app = FastAPI(
 # Configuration
 GATEKEEPER_API_URL = "http://localhost:8001/api/frontend"
 
+# In-memory conversation storage (em produção usaria Redis ou DB)
+conversation_memory = {}
+
+class ConversationMemory:
+    def __init__(self):
+        self.sessions = {}
+    
+    def get_session(self, session_id: str) -> Dict[str, Any]:
+        """Obter ou criar sessão de conversa"""
+        if session_id not in self.sessions:
+            self.sessions[session_id] = {
+                "id": session_id,
+                "created_at": datetime.now(),
+                "last_activity": datetime.now(),
+                "messages": [],
+                "context": {},
+                "user_preferences": {},
+                "document_history": []
+            }
+        return self.sessions[session_id]
+    
+    def add_message(self, session_id: str, role: str, content: str, attachments: List = None, metadata: Dict = None):
+        """Adicionar mensagem à sessão"""
+        session = self.get_session(session_id)
+        
+        message = {
+            "id": str(uuid.uuid4()),
+            "role": role,  # user, assistant, system
+            "content": content,
+            "timestamp": datetime.now(),
+            "attachments": attachments or [],
+            "metadata": metadata or {}
+        }
+        
+        session["messages"].append(message)
+        session["last_activity"] = datetime.now()
+        
+        # Manter apenas os últimos 20 mensagens para não sobrecarregar
+        if len(session["messages"]) > 20:
+            session["messages"] = session["messages"][-20:]
+    
+    def get_conversation_context(self, session_id: str, max_messages: int = 10) -> str:
+        """Obter contexto das últimas mensagens"""
+        session = self.get_session(session_id)
+        recent_messages = session["messages"][-max_messages:]
+        
+        context_parts = []
+        for msg in recent_messages:
+            role_display = {"user": "Usuário", "assistant": "Assistente", "system": "Sistema"}.get(msg["role"], msg["role"])
+            context_parts.append(f"{role_display}: {msg['content']}")
+        
+        return "\n".join(context_parts)
+    
+    def update_user_context(self, session_id: str, user_context: Dict[str, Any]):
+        """Atualizar contexto do usuário na sessão"""
+        session = self.get_session(session_id)
+        session["context"].update(user_context)
+    
+    def add_document_to_history(self, session_id: str, documents: List[Dict[str, Any]]):
+        """Adicionar documentos visualizados ao histórico"""
+        session = self.get_session(session_id)
+        for doc in documents:
+            if doc not in session["document_history"]:
+                session["document_history"].append({
+                    **doc,
+                    "accessed_at": datetime.now()
+                })
+    
+    def cleanup_old_sessions(self, hours: int = 24):
+        """Limpar sessões antigas"""
+        cutoff = datetime.now() - timedelta(hours=hours)
+        old_sessions = [
+            session_id for session_id, session in self.sessions.items()
+            if session["last_activity"] < cutoff
+        ]
+        
+        for session_id in old_sessions:
+            del self.sessions[session_id]
+        
+        logger.info(f"🧹 Limpeza de sessões: {len(old_sessions)} sessões antigas removidas")
+
+# Instância global de memória
+memory = ConversationMemory()
+
 class ChatRequest(BaseModel):
     agent_name: str
     user_context: Dict[str, Any]
     request_data: Dict[str, Any]
+    session_id: Optional[str] = None
 
 class ChatResponse(BaseModel):
     message: str
@@ -39,6 +125,7 @@ class ChatResponse(BaseModel):
     agent: str
     status: str = "success"
     timestamp: str
+    session_id: Optional[str] = None
 
 @app.get("/health")
 async def health_check():
@@ -58,16 +145,23 @@ async def route_message(request: ChatRequest):
         # Extract message from request
         message = request.request_data.get("message", "")
         user_context = request.user_context
+        session_id = request.session_id
         
-        # Enhanced message processing with document search
-        response_message, attachments = await process_message(message, user_context)
+        # Generate session_id if not provided
+        if not session_id:
+            session_id = str(uuid.uuid4())
+            logger.info(f"🔄 Generated new session_id: {session_id}")
+        
+        # Enhanced message processing with document search and memory
+        response_message, attachments = await process_message(message, user_context, session_id)
         
         response = ChatResponse(
             message=response_message,
             attachments=attachments,
             agent=request.agent_name,
             status="success",
-            timestamp=datetime.now().isoformat()
+            timestamp=datetime.now().isoformat(),
+            session_id=session_id
         )
         
         logger.info(f"✅ Response generated for: {request.agent_name}")
@@ -148,12 +242,18 @@ async def format_document_attachments(documents: List[Dict[str, Any]]) -> List[D
     
     return attachments
 
-async def generate_ai_response(message: str, user_context: Dict[str, Any], documents: List[Dict[str, Any]] = None) -> str:
+async def generate_ai_response(message: str, user_context: Dict[str, Any], documents: List[Dict[str, Any]] = None, session_id: str = None) -> str:
     """Generate intelligent response using LLM Router"""
     try:
         # Build context-aware prompt
         user_name = user_context.get("name", "usuário")
         user_role = user_context.get("role", "operador")
+        
+        # Obter contexto da conversa se tiver session_id
+        conversation_context = ""
+        if session_id:
+            memory.update_user_context(session_id, user_context)
+            conversation_context = memory.get_conversation_context(session_id, max_messages=5)
         
         # Create system prompt for logistics assistant
         system_prompt = f"""Você é um assistente inteligente de logística especializado em ajudar {user_role}s.
@@ -168,7 +268,17 @@ Instruções:
 3. Use informações dos documentos quando disponíveis
 4. Seja claro e direto
 5. Ofereça próximos passos quando apropriado
+6. Use o histórico da conversa para dar respostas mais contextuais
 
+"""
+
+        # Adicionar contexto da conversa se disponível
+        if conversation_context:
+            system_prompt += f"""
+Histórico da conversa recente:
+{conversation_context}
+
+Baseie-se neste histórico para dar uma resposta mais contextual e personalizada.
 """
 
         # Add document context if available
@@ -204,7 +314,7 @@ Use essas informações para fornecer uma resposta mais específica e útil.
         # Fallback to simple response
         return f"Desculpe {user_context.get('name', 'usuário')}, estou processando sua solicitação. Como posso ajudá-lo com documentos ou rastreamento de cargas?"
 
-async def process_message(message: str, user_context: Dict[str, Any]) -> tuple[str, List[Dict[str, Any]]]:
+async def process_message(message: str, user_context: Dict[str, Any], session_id: str = None) -> tuple[str, List[Dict[str, Any]]]:
     """Enhanced message processing with LLM and real document search"""
     
     # Extract user info
@@ -222,15 +332,52 @@ async def process_message(message: str, user_context: Dict[str, Any]) -> tuple[s
         attachments = await format_document_attachments(documents)
         logger.info(f"🔍 Document search for '{search_terms}': found {len(documents)} documents")
     
+    # Salvar mensagem do usuário na memória
+    if session_id:
+        memory.add_message(session_id, "user", message)
+        if documents:
+            memory.add_document_to_history(session_id, documents)
+
+    # Check if this is an analysis request
+    is_analysis_request = any(word in message_lower for word in [
+        "analis", "insight", "relatório", "conformidade", "risco", "análise", 
+        "tendência", "padrão", "problema", "otimiza"
+    ])
+    
     # Generate intelligent response using LLM with document context
     try:
-        response_message = await generate_ai_response(message, user_context, documents)
+        if is_analysis_request and documents:
+            # Use document analysis endpoint for better insights
+            analysis_result = await analyze_documents({
+                "user_context": user_context,
+                "filters": {"search": search_terms or ""},
+                "analysis_type": "general"
+            })
+            
+            if analysis_result.get("analysis", {}).get("summary"):
+                response_message = f"📊 **Análise Completa dos Documentos**\n\n{analysis_result['analysis']['summary']}"
+                
+                # Add metadata about the analysis
+                analyzed_docs = analysis_result.get("documents", [])
+                if analyzed_docs:
+                    response_message += f"\n\n📋 **Documentos Analisados:** {len(analyzed_docs)}"
+                    response_message += f"\n🤖 **Modelo:** {analysis_result['analysis']['analyzer']['model']}"
+                    response_message += f"\n⏱️ **Tempo:** {analysis_result['analysis']['analyzer']['response_time']:.1f}s"
+            else:
+                # Fallback to regular AI response
+                response_message = await generate_ai_response(message, user_context, documents, session_id)
+        else:
+            response_message = await generate_ai_response(message, user_context, documents, session_id)
         
-        # If we found documents, add a note about them
-        if documents:
+        # If we found documents, add a note about them (unless it was an analysis)
+        if documents and not is_analysis_request:
             doc_count = len(documents)
             if doc_count > 0:
                 response_message += f"\n\n📎 Encontrei {doc_count} documento(s) relacionado(s) que estão anexados abaixo."
+        
+        # Salvar resposta na memória
+        if session_id:
+            memory.add_message(session_id, "assistant", response_message, attachments)
     
     except Exception as e:
         logger.error(f"❌ AI response generation failed, using fallback: {str(e)}")
@@ -295,6 +442,284 @@ def extract_search_terms(message: str) -> str:
         return ' '.join(meaningful_words[:2])  # Max 2 words
     
     return message.strip()
+
+@app.post("/documents/analyze")
+async def analyze_documents(request: Dict[str, Any]):
+    """Analyze documents and generate intelligent insights"""
+    try:
+        user_context = request.get("user_context", {})
+        document_filters = request.get("filters", {})
+        analysis_type = request.get("analysis_type", "general")  # general, compliance, risk, efficiency
+        
+        # Buscar documentos para análise
+        search_query = document_filters.get("search", "")
+        documents = await search_documents(search_query, semantic_search=True)
+        
+        if not documents:
+            return {
+                "analysis": {
+                    "summary": "Nenhum documento encontrado para análise.",
+                    "insights": [],
+                    "recommendations": [],
+                    "risk_score": 0
+                },
+                "processed_documents": 0
+            }
+        
+        # Analisar documentos usando IA
+        analysis_prompt = f"""Você é um especialista em análise de documentos logísticos. 
+        
+Analise os seguintes documentos e forneça insights detalhados:
+
+Tipo de análise solicitada: {analysis_type}
+Usuário: {user_context.get('name', 'N/A')} ({user_context.get('role', 'N/A')})
+
+Documentos encontrados: {len(documents)}
+
+Informações dos documentos:
+"""
+        
+        # Adicionar informações dos documentos ao prompt
+        for i, doc in enumerate(documents[:10]):  # Limitar a 10 documentos
+            doc_info = f"""
+Documento {i+1}:
+- Número/ID: {doc.get('number', doc.get('file_name', 'N/A'))}
+- Cliente: {doc.get('client', 'N/A')}
+- Status: {doc.get('status', 'N/A')}
+- Origem: {doc.get('origin', 'N/A')}
+- Destino: {doc.get('destination', 'N/A')}
+- Data: {doc.get('date', doc.get('upload_date', 'N/A'))}
+"""
+            analysis_prompt += doc_info
+        
+        analysis_prompt += f"""
+
+Com base nestes dados, forneça uma análise estruturada incluindo:
+
+1. RESUMO EXECUTIVO (2-3 linhas)
+2. INSIGHTS PRINCIPAIS (3-5 pontos específicos)
+3. RECOMENDAÇÕES PRÁTICAS (3-4 ações concretas)
+4. SCORE DE RISCO (0-10, onde 10 é alto risco)
+5. PRÓXIMOS PASSOS
+
+Seja específico, prático e focado em ações que o {user_context.get('role', 'operador')} pode tomar.
+Formato JSON não é necessário - use texto claro e organizado.
+"""
+        
+        # Gerar análise usando LLM
+        llm_response = await generate_llm_response(
+            prompt=analysis_prompt,
+            task_type=TaskType.ANALYSIS,
+            temperature=0.3,  # Mais factual
+            max_tokens=1500,  # Análise mais detalhada
+            user_context=user_context
+        )
+        
+        logger.info(f"📊 Document analysis generated for {len(documents)} documents")
+        
+        return {
+            "analysis": {
+                "type": analysis_type,
+                "summary": llm_response.content,
+                "processed_documents": len(documents),
+                "analysis_date": datetime.now().isoformat(),
+                "analyzer": {
+                    "model": llm_response.model_used,
+                    "provider": llm_response.provider,
+                    "tokens_used": llm_response.tokens_used,
+                    "response_time": llm_response.response_time
+                }
+            },
+            "documents": [
+                {
+                    "id": doc.get("id", ""),
+                    "name": doc.get("number", doc.get("file_name", "")),
+                    "client": doc.get("client", ""),
+                    "status": doc.get("status", "")
+                }
+                for doc in documents[:20]  # Retornar até 20 documentos
+            ]
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in document analysis: {str(e)}")
+        return {
+            "analysis": {
+                "summary": f"Erro na análise de documentos: {str(e)}",
+                "insights": [],
+                "recommendations": [],
+                "risk_score": 0
+            },
+            "processed_documents": 0,
+            "error": str(e)
+        }
+
+@app.post("/agents/smart-actions")
+async def get_smart_actions(request: Dict[str, Any]):
+    """Get smart actions based on user context and recent activity"""
+    try:
+        user_context = request.get("user_context", {})
+        user_name = user_context.get("name", "usuário")
+        user_role = user_context.get("role", "operador")
+        
+        # Buscar documentos recentes para sugerir ações
+        recent_docs = await search_documents("", semantic_search=False)  # Get recent docs
+        
+        smart_actions = []
+        
+        # Ação 1: Análise de documentos recentes
+        if recent_docs:
+            smart_actions.append({
+                "id": "analyze-recent-docs",
+                "title": "Analisar Documentos Recentes",
+                "description": f"Análise inteligente de {len(recent_docs)} documentos encontrados",
+                "category": "analysis",
+                "priority": "high",
+                "suggestedPrompt": f"Gerar análise completa dos documentos recentes com insights e recomendações",
+                "estimatedTime": "45 segundos",
+                "aiPowered": True,
+                "action_type": "document_analysis",
+                "analysis_params": {
+                    "document_count": len(recent_docs),
+                    "analysis_type": "general"
+                }
+            })
+        
+        # Ação adicional: Análise de conformidade
+        smart_actions.append({
+            "id": "compliance-analysis",
+            "title": "Análise de Conformidade",
+            "description": "Verificar conformidade documental e regulatória",
+            "category": "analysis",
+            "priority": "medium",
+            "suggestedPrompt": "Analisar documentos para identificar problemas de conformidade e regulamentação",
+            "estimatedTime": "60 segundos",
+            "aiPowered": True,
+            "action_type": "compliance_analysis",
+            "analysis_params": {
+                "analysis_type": "compliance"
+            }
+        })
+        
+        # Ação adicional: Análise de riscos
+        smart_actions.append({
+            "id": "risk-analysis", 
+            "title": "Análise de Riscos",
+            "description": "Identificar riscos operacionais e logísticos",
+            "category": "prediction",
+            "priority": "medium",
+            "suggestedPrompt": "Identificar e analisar riscos potenciais nos documentos e operações",
+            "estimatedTime": "90 segundos",
+            "aiPowered": True,
+            "action_type": "risk_analysis",
+            "analysis_params": {
+                "analysis_type": "risk"
+            }
+        })
+        
+        # Ação 2: Relatório de status inteligente
+        smart_actions.append({
+            "id": "intelligent-status-report",
+            "title": "Relatório de Status Inteligente",
+            "description": "Resumo personalizado das suas operações",
+            "category": "analysis", 
+            "priority": "medium",
+            "suggestedPrompt": f"Gerar um relatório personalizado de status para {user_name} ({user_role})",
+            "estimatedTime": "45 segundos",
+            "aiPowered": True
+        })
+        
+        # Ação 3: Predição de problemas
+        smart_actions.append({
+            "id": "predict-issues",
+            "title": "Identificar Possíveis Problemas",
+            "description": "IA analisa padrões para prever problemas",
+            "category": "prediction",
+            "priority": "medium", 
+            "suggestedPrompt": "Analisar documentos e identificar possíveis problemas ou atrasos",
+            "estimatedTime": "60 segundos",
+            "aiPowered": True
+        })
+        
+        # Ação 4: Sugestões de otimização
+        smart_actions.append({
+            "id": "optimization-suggestions", 
+            "title": "Sugestões de Otimização",
+            "description": "Recomendações baseadas em dados",
+            "category": "optimization",
+            "priority": "low",
+            "suggestedPrompt": "Analisar operações e sugerir melhorias de eficiência",
+            "estimatedTime": "90 segundos", 
+            "aiPowered": True
+        })
+        
+        return {
+            "smart_actions": smart_actions,
+            "user_context": {
+                "name": user_name,
+                "role": user_role,
+                "total_recent_docs": len(recent_docs) if recent_docs else 0
+            },
+            "generated_at": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error generating smart actions: {str(e)}")
+        return {
+            "smart_actions": [],
+            "error": str(e)
+        }
+
+@app.get("/sessions/{session_id}")
+async def get_session_info(session_id: str):
+    """Get session conversation history and context"""
+    try:
+        session = memory.get_session(session_id)
+        
+        return {
+            "session_id": session_id,
+            "created_at": session["created_at"].isoformat(),
+            "last_activity": session["last_activity"].isoformat(),
+            "message_count": len(session["messages"]),
+            "context": session["context"],
+            "document_history_count": len(session["document_history"]),
+            "messages": [
+                {
+                    "id": msg["id"],
+                    "role": msg["role"],
+                    "content": msg["content"][:200] + "..." if len(msg["content"]) > 200 else msg["content"],
+                    "timestamp": msg["timestamp"].isoformat(),
+                    "has_attachments": len(msg["attachments"]) > 0
+                }
+                for msg in session["messages"][-10:]  # Últimas 10 mensagens
+            ]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/sessions")
+async def list_active_sessions():
+    """List all active sessions"""
+    try:
+        # Cleanup old sessions first
+        memory.cleanup_old_sessions(hours=24)
+        
+        sessions_info = []
+        for session_id, session in memory.sessions.items():
+            sessions_info.append({
+                "session_id": session_id,
+                "created_at": session["created_at"].isoformat(),
+                "last_activity": session["last_activity"].isoformat(),
+                "message_count": len(session["messages"]),
+                "user_name": session.get("context", {}).get("name", "Unknown")
+            })
+        
+        return {
+            "active_sessions": len(sessions_info),
+            "sessions": sorted(sessions_info, key=lambda x: x["last_activity"], reverse=True)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/agents/list")
 async def list_agents():

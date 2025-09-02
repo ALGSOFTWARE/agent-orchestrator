@@ -33,14 +33,15 @@ try:
         def __init__(self):
             self.crewai_service = CrewAIService()
             
-        async def process_chat_message(self, message: str, context: dict):
+        async def process_chat_message(self, message: str, context: dict, session_id: str = None):
             """Processar mensagem usando agente CrewAI real"""
             try:
                 # Comunicar com python-crewai microservice
                 response = await self.crewai_service.send_message_to_agent(
                     "frontend_logistics_agent",
                     message,
-                    context
+                    context,
+                    session_id
                 )
                 
                 # Garantir que retornamos o formato esperado
@@ -236,6 +237,7 @@ async def _search_documents_traditional(
 class ChatMessageRequest(BaseModel):
     message: str
     user_context: Dict[str, Any]
+    session_id: Optional[str] = None
 
 class DocumentFilters(BaseModel):
     type: Optional[str] = None
@@ -1480,7 +1482,7 @@ async def process_chat_message(request: ChatMessageRequest):
     """
     try:
         agent = RealFrontendLogisticsAgent()
-        response = await agent.process_chat_message(request.message, request.user_context)
+        response = await agent.process_chat_message(request.message, request.user_context, request.session_id)
         
         return {
             "success": True,
@@ -1522,6 +1524,81 @@ async def get_reports_data(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+class SmartActionsRequest(BaseModel):
+    user_context: Dict[str, Any]
+
+# Smart Actions endpoint
+@router.post("/chat/smart-actions")
+async def get_smart_actions(request: SmartActionsRequest):
+    """
+    Busca ações inteligentes baseadas no contexto do usuário
+    """
+    try:
+        agent = RealFrontendLogisticsAgent()
+        
+        # Enviar request para o serviço CrewAI que já implementamos
+        import httpx
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "http://localhost:8000/agents/smart-actions",
+                json={
+                    "user_context": request.user_context
+                }
+            )
+            
+            if response.status_code == 200:
+                smart_actions_data = response.json()
+                
+                return {
+                    "success": True,
+                    "data": smart_actions_data,
+                    "timestamp": datetime.now().isoformat()
+                }
+            else:
+                # Fallback com ações estáticas
+                return {
+                    "success": True,
+                    "data": {
+                        "smart_actions": [
+                            {
+                                "id": "analyze-recent-docs",
+                                "title": "Analisar Documentos Recentes",
+                                "description": "Análise inteligente dos últimos documentos",
+                                "category": "analysis",
+                                "priority": "high",
+                                "suggestedPrompt": "Analisar os documentos mais recentes e fornecer insights",
+                                "estimatedTime": "30 segundos",
+                                "aiPowered": True
+                            }
+                        ],
+                        "user_context": request.user_context,
+                        "generated_at": datetime.now().isoformat()
+                    }
+                }
+                
+    except Exception as e:
+        # Fallback com ações básicas
+        return {
+            "success": True,
+            "data": {
+                "smart_actions": [
+                    {
+                        "id": "help-guide",
+                        "title": "Ajuda e Orientação",
+                        "description": "Guia de como usar o sistema",
+                        "category": "help",
+                        "priority": "medium",
+                        "suggestedPrompt": "Como posso usar este sistema para consultar documentos e rastrear cargas?",
+                        "estimatedTime": "15 segundos",
+                        "aiPowered": False
+                    }
+                ],
+                "user_context": request.user_context,
+                "error": str(e),
+                "generated_at": datetime.now().isoformat()
+            }
+        }
 
 # Health check endpoint
 @router.get("/health")

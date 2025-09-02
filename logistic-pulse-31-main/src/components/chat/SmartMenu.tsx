@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   FileText, 
   Truck, 
@@ -8,20 +8,29 @@ import {
   MapPin, 
   ChevronRight,
   ArrowLeft,
-  CheckCircle
+  CheckCircle,
+  Brain,
+  Zap,
+  Target,
+  TrendingUp,
+  AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useSmartActions } from "@/hooks/useApi";
 
 export interface MenuAction {
   id: string;
   icon: React.ReactNode;
   title: string;
   description: string;
-  category: "document" | "tracking" | "status" | "help";
+  category: "document" | "tracking" | "status" | "help" | "analysis" | "prediction" | "optimization";
   suggestedPrompt: string;
   followUpSteps?: MenuStep[];
+  priority?: "high" | "medium" | "low";
+  estimatedTime?: string;
+  aiPowered?: boolean;
 }
 
 export interface MenuStep {
@@ -37,6 +46,7 @@ interface SmartMenuProps {
   onActionSelect: (action: MenuAction, inputs?: Record<string, string>) => void;
   isVisible: boolean;
   onClose: () => void;
+  userContext?: any;
 }
 
 const menuActions: MenuAction[] = [
@@ -139,11 +149,27 @@ const menuActions: MenuAction[] = [
   }
 ];
 
-export const SmartMenu = ({ onActionSelect, isVisible, onClose }: SmartMenuProps) => {
+export const SmartMenu = ({ onActionSelect, isVisible, onClose, userContext }: SmartMenuProps) => {
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [selectedAction, setSelectedAction] = useState<MenuAction | null>(null);
   const [stepInputs, setStepInputs] = useState<Record<string, string>>({});
   const [isProcessing, setIsProcessing] = useState(false);
+  const [allActions, setAllActions] = useState<MenuAction[]>(menuActions);
+  
+  // Hook para buscar ações inteligentes
+  const { data: smartActionsData, isLoading: isLoadingSmartActions } = useSmartActions(userContext);
+  
+  useEffect(() => {
+    if (smartActionsData?.smart_actions) {
+      // Combinar ações estáticas com ações inteligentes
+      const intelligentActions = smartActionsData.smart_actions.map((action: any) => ({
+        ...action,
+        icon: getIconForCategory(action.category),
+      }));
+      
+      setAllActions([...intelligentActions, ...menuActions]);
+    }
+  }, [smartActionsData]);
 
   const resetMenu = () => {
     setCurrentStep(0);
@@ -203,13 +229,38 @@ export const SmartMenu = ({ onActionSelect, isVisible, onClose }: SmartMenuProps
     }
   };
 
+  const getIconForCategory = (category: string) => {
+    switch (category) {
+      case "analysis": return <Brain className="w-5 h-5" />;
+      case "prediction": return <AlertTriangle className="w-5 h-5" />;
+      case "optimization": return <TrendingUp className="w-5 h-5" />;
+      case "document": return <FileText className="w-5 h-5" />;
+      case "tracking": return <Truck className="w-5 h-5" />;
+      case "status": return <MapPin className="w-5 h-5" />;
+      case "help": return <MessageCircle className="w-5 h-5" />;
+      default: return <Zap className="w-5 h-5" />;
+    }
+  };
+
   const getCategoryColor = (category: string) => {
     switch (category) {
+      case "analysis": return "bg-purple-500/10 text-purple-600 border-purple-200";
+      case "prediction": return "bg-red-500/10 text-red-600 border-red-200";
+      case "optimization": return "bg-indigo-500/10 text-indigo-600 border-indigo-200";
       case "document": return "bg-blue-500/10 text-blue-600 border-blue-200";
       case "tracking": return "bg-green-500/10 text-green-600 border-green-200";
       case "status": return "bg-orange-500/10 text-orange-600 border-orange-200";
-      case "help": return "bg-purple-500/10 text-purple-600 border-purple-200";
+      case "help": return "bg-gray-500/10 text-gray-600 border-gray-200";
       default: return "bg-gray-500/10 text-gray-600 border-gray-200";
+    }
+  };
+
+  const getPriorityColor = (priority?: string) => {
+    switch (priority) {
+      case "high": return "bg-red-100 text-red-800 border-red-200";
+      case "medium": return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case "low": return "bg-green-100 text-green-800 border-green-200";
+      default: return "bg-gray-100 text-gray-800 border-gray-200";
     }
   };
 
@@ -251,37 +302,73 @@ export const SmartMenu = ({ onActionSelect, isVisible, onClose }: SmartMenuProps
 
           {!selectedAction ? (
             /* Menu Principal */
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {menuActions.map((action) => (
-                <Card
-                  key={action.id}
-                  className="p-4 cursor-pointer hover:shadow-soft transition-all duration-200 border-border hover:border-brand-primary/30 group"
-                  onClick={() => handleActionClick(action)}
-                >
-                  <div className="flex items-start space-x-3">
-                    <div className="p-2 rounded-lg bg-brand-primary/10 text-brand-primary group-hover:bg-brand-primary group-hover:text-brand-dark transition-colors">
-                      {action.icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <h3 className="font-medium text-foreground group-hover:text-brand-primary transition-colors">
-                          {action.title}
-                        </h3>
-                        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-brand-primary transition-colors" />
+            <div className="space-y-4">
+              {isLoadingSmartActions && (
+                <div className="text-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand-primary mx-auto mb-2"></div>
+                  <p className="text-sm text-muted-foreground">Carregando ações inteligentes...</p>
+                </div>
+              )}
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {allActions.map((action) => (
+                  <Card
+                    key={action.id}
+                    className="p-4 cursor-pointer hover:shadow-soft transition-all duration-200 border-border hover:border-brand-primary/30 group relative"
+                    onClick={() => handleActionClick(action)}
+                  >
+                    {action.aiPowered && (
+                      <div className="absolute top-2 right-2">
+                        <Brain className="w-4 h-4 text-purple-500" />
                       </div>
-                      <p className="text-sm text-muted-foreground mb-2">
-                        {action.description}
-                      </p>
-                      <Badge 
-                        variant="outline"
-                        className={getCategoryColor(action.category)}
-                      >
-                        {action.category}
-                      </Badge>
+                    )}
+                    
+                    <div className="flex items-start space-x-3">
+                      <div className="p-2 rounded-lg bg-brand-primary/10 text-brand-primary group-hover:bg-brand-primary group-hover:text-brand-dark transition-colors">
+                        {action.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <h3 className="font-medium text-foreground group-hover:text-brand-primary transition-colors">
+                            {action.title}
+                          </h3>
+                          <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-brand-primary transition-colors" />
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-2">
+                          {action.description}
+                        </p>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex gap-2">
+                            <Badge 
+                              variant="outline"
+                              className={getCategoryColor(action.category)}
+                            >
+                              {action.category}
+                            </Badge>
+                            
+                            {action.priority && (
+                              <Badge 
+                                variant="outline"
+                                className={getPriorityColor(action.priority)}
+                              >
+                                {action.priority}
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          {action.estimatedTime && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {action.estimatedTime}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                ))}
+              </div>
             </div>
           ) : (
             /* Fluxo de Etapas */

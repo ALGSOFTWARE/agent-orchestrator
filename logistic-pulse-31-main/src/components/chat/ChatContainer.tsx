@@ -28,11 +28,21 @@ export const ChatContainer = () => {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isSmartMenuOpen, setIsSmartMenuOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<any>(null);
+  const [sessionId, setSessionId] = useState<string>(() => {
+    // Try to get existing session from localStorage or create new one
+    const stored = localStorage.getItem('chat_session_id');
+    return stored || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  });
   const [userProfile, setUserProfile] = useState({
     name: "Eduardo Silva",
     company: "Mercosul Line",
     role: "Operador Logístico"
   });
+  
+  // Store session ID in localStorage
+  useEffect(() => {
+    localStorage.setItem('chat_session_id', sessionId);
+  }, [sessionId]);
   
   const { toast } = useToast();
   const interpreter = new MessageInterpreter();
@@ -71,7 +81,8 @@ Como posso ajudá-lo hoje?`,
       // Usar a API real para processar a mensagem
       const response = await chatMutation.mutateAsync({
         message: content,
-        userContext: userProfile
+        userContext: userProfile,
+        sessionId: sessionId
       });
       
       // Criar mensagem de resposta do agente
@@ -163,6 +174,7 @@ Como posso ajudá-lo hoje?`,
         isVisible={isSmartMenuOpen}
         onClose={() => setIsSmartMenuOpen(false)}
         onActionSelect={handleSmartMenuAction}
+        userContext={userProfile}
       />
     </div>
   );
