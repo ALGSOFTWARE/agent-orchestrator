@@ -12,7 +12,13 @@ import logging
 import httpx
 import asyncio
 from llm_router import generate_llm_response, TaskType, LLMProvider
+from agents.logistics_crew import LogisticsCrew
 import uuid
+
+# Disable CrewAI telemetry to avoid external service calls
+import os
+os.environ['OTEL_SDK_DISABLED'] = 'true'
+os.environ['CREWAI_TELEMETRY_DISABLED'] = 'true'
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -110,6 +116,14 @@ class ConversationMemory:
 
 # Instância global de memória
 memory = ConversationMemory()
+
+# Initialize CrewAI Logistics Crew
+try:
+    logistics_crew = LogisticsCrew()
+    logger.info("🤖 LogisticsCrew initialized successfully")
+except Exception as e:
+    logger.error(f"❌ Failed to initialize LogisticsCrew: {str(e)}")
+    logistics_crew = None
 
 class ChatRequest(BaseModel):
     agent_name: str
@@ -242,6 +256,102 @@ async def format_document_attachments(documents: List[Dict[str, Any]]) -> List[D
     
     return attachments
 
+async def process_with_crewai(message: str, user_context: Dict[str, Any], session_id: str = None) -> tuple[str, List[Dict[str, Any]]]:
+    """Process message using CrewAI agents for intelligent responses"""
+    try:
+        if not logistics_crew:
+            logger.warning("⚠️ LogisticsCrew not available, falling back to basic processing")
+            return await basic_message_processing(message, user_context, session_id)
+        
+        message_lower = message.lower()
+        attachments = []
+        
+        # Determine the type of request and route to appropriate agent method
+        if any(keyword in message_lower for keyword in ["find", "search", "show", "list", "mdf", "cte", "bl", "nfe", "documento"]):
+            # Document search request
+            logger.info("🔍 Routing to document search agent")
+            response = await run_crew_async(
+                lambda: logistics_crew.search_documents(message, user_context)
+            )
+            
+            # Try to extract document information from response for attachments
+            if "documento" in response.lower() and "encontr" in response.lower():
+                documents = await search_documents(extract_search_terms(message), semantic_search=True)
+                attachments = await format_document_attachments(documents)
+        
+        elif any(keyword in message_lower for keyword in ["analiz", "insight", "relatório", "análise", "tendência", "padrão"]):
+            # Analysis request
+            logger.info("📊 Routing to collaborative analysis")
+            response = await run_crew_async(
+                lambda: logistics_crew.collaborative_analysis(message, user_context)
+            )
+            
+        elif any(keyword in message_lower for keyword in ["compliance", "conform", "regulation", "validat", "aprovação", "legal"]):
+            # Compliance request - need document IDs, so search first
+            logger.info("🛡️ Routing to compliance check")
+            documents = await search_documents(extract_search_terms(message), semantic_search=True)
+            document_ids = [doc.get("id", "") for doc in documents if doc.get("id")]
+            
+            if document_ids:
+                response = await run_crew_async(
+                    lambda: logistics_crew.check_compliance(document_ids, user_context)
+                )
+                attachments = await format_document_attachments(documents)
+            else:
+                response = await run_crew_async(
+                    lambda: logistics_crew.handle_general_inquiry(message, user_context)
+                )
+        
+        else:
+            # General inquiry
+            logger.info("💬 Routing to general inquiry handler")
+            response = await run_crew_async(
+                lambda: logistics_crew.handle_general_inquiry(message, user_context)
+            )
+        
+        # Save messages to memory
+        if session_id:
+            memory.add_message(session_id, "user", message)
+            memory.add_message(session_id, "assistant", response, attachments)
+        
+        return response, attachments
+        
+    except Exception as e:
+        logger.error(f"❌ Error in CrewAI processing: {str(e)}")
+        # Fallback to basic processing
+        return await basic_message_processing(message, user_context, session_id)
+
+async def run_crew_async(crew_function):
+    """Run CrewAI function in a separate thread to avoid blocking"""
+    import concurrent.futures
+    
+    loop = asyncio.get_event_loop()
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        result = await loop.run_in_executor(executor, crew_function)
+    return result
+
+async def basic_message_processing(message: str, user_context: Dict[str, Any], session_id: str = None) -> tuple[str, List[Dict[str, Any]]]:
+    """Basic message processing as fallback when CrewAI is not available"""
+    message_lower = message.lower()
+    attachments = []
+    
+    # Basic document search
+    search_terms = extract_search_terms(message)
+    documents = []
+    
+    if search_terms and any(word in message_lower for word in ["documento", "cte", "nfe", "bl", "manifesto", "pdf", "status", "carga"]):
+        documents = await search_documents(search_terms, semantic_search=True)
+        attachments = await format_document_attachments(documents)
+    
+    # Generate basic AI response
+    response = await generate_ai_response(message, user_context, documents, session_id)
+    
+    if documents and "documento" not in response.lower():
+        doc_count = len(documents)
+        response += f"\n\n📎 Encontrei {doc_count} documento(s) relacionado(s)."
+    
+    return response, attachments
+
 async def generate_ai_response(message: str, user_context: Dict[str, Any], documents: List[Dict[str, Any]] = None, session_id: str = None) -> str:
     """Generate intelligent response using LLM Router"""
     try:
@@ -315,96 +425,21 @@ Use essas informações para fornecer uma resposta mais específica e útil.
         return f"Desculpe {user_context.get('name', 'usuário')}, estou processando sua solicitação. Como posso ajudá-lo com documentos ou rastreamento de cargas?"
 
 async def process_message(message: str, user_context: Dict[str, Any], session_id: str = None) -> tuple[str, List[Dict[str, Any]]]:
-    """Enhanced message processing with LLM and real document search"""
+    """Enhanced message processing with CrewAI agents"""
     
-    # Extract user info
-    user_name = user_context.get("name", "usuário")
-    message_lower = message.lower()
-    attachments = []
+    logger.info(f"🚀 Processing message with CrewAI: {message[:50]}{'...' if len(message) > 50 else ''}")
     
-    # Always try to extract search terms for potential document queries
-    search_terms = extract_search_terms(message)
-    documents = []
-    
-    # Search for documents if we have relevant terms
-    if search_terms and any(word in message_lower for word in ["documento", "cte", "nfe", "bl", "manifesto", "pdf", "status", "carga", "entrega", "rastrear"]):
-        documents = await search_documents(search_terms, semantic_search=True)
-        attachments = await format_document_attachments(documents)
-        logger.info(f"🔍 Document search for '{search_terms}': found {len(documents)} documents")
-    
-    # Salvar mensagem do usuário na memória
-    if session_id:
-        memory.add_message(session_id, "user", message)
-        if documents:
-            memory.add_document_to_history(session_id, documents)
-
-    # Check if this is an analysis request
-    is_analysis_request = any(word in message_lower for word in [
-        "analis", "insight", "relatório", "conformidade", "risco", "análise", 
-        "tendência", "padrão", "problema", "otimiza"
-    ])
-    
-    # Generate intelligent response using LLM with document context
+    # Use CrewAI agents for intelligent processing
     try:
-        if is_analysis_request and documents:
-            # Use document analysis endpoint for better insights
-            analysis_result = await analyze_documents({
-                "user_context": user_context,
-                "filters": {"search": search_terms or ""},
-                "analysis_type": "general"
-            })
-            
-            if analysis_result.get("analysis", {}).get("summary"):
-                response_message = f"📊 **Análise Completa dos Documentos**\n\n{analysis_result['analysis']['summary']}"
-                
-                # Add metadata about the analysis
-                analyzed_docs = analysis_result.get("documents", [])
-                if analyzed_docs:
-                    response_message += f"\n\n📋 **Documentos Analisados:** {len(analyzed_docs)}"
-                    response_message += f"\n🤖 **Modelo:** {analysis_result['analysis']['analyzer']['model']}"
-                    response_message += f"\n⏱️ **Tempo:** {analysis_result['analysis']['analyzer']['response_time']:.1f}s"
-            else:
-                # Fallback to regular AI response
-                response_message = await generate_ai_response(message, user_context, documents, session_id)
-        else:
-            response_message = await generate_ai_response(message, user_context, documents, session_id)
+        response_message, attachments = await process_with_crewai(message, user_context, session_id)
         
-        # If we found documents, add a note about them (unless it was an analysis)
-        if documents and not is_analysis_request:
-            doc_count = len(documents)
-            if doc_count > 0:
-                response_message += f"\n\n📎 Encontrei {doc_count} documento(s) relacionado(s) que estão anexados abaixo."
+        logger.info(f"✅ CrewAI processing completed successfully")
+        return response_message, attachments
         
-        # Salvar resposta na memória
-        if session_id:
-            memory.add_message(session_id, "assistant", response_message, attachments)
-    
     except Exception as e:
-        logger.error(f"❌ AI response generation failed, using fallback: {str(e)}")
-        
-        # Fallback to rule-based responses
-        if any(word in message_lower for word in ["documento", "cte", "nfe", "bl", "manifesto", "pdf"]):
-            if documents:
-                response_message = f"Encontrei {len(documents)} documento(s) relacionado(s) à sua busca. Os documentos estão anexados abaixo."
-            else:
-                response_message = f"Olá {user_name}! Não encontrei documentos específicos, mas posso ajudá-lo com outros tipos de consulta."
-        
-        elif any(word in message_lower for word in ["status", "carga", "entrega", "rastrear"]):
-            if documents:
-                response_message = f"Encontrei documentos relacionados ao seu rastreamento. Verifique os anexos para mais informações."
-            else:
-                response_message = f"Para rastreamento, por favor informe números específicos de embarque ou CT-e."
-        
-        elif any(word in message_lower for word in ["ajuda", "help", "como"]):
-            response_message = f"Posso te ajudar com:\n\n• 📄 Consulta de documentos\n• 📦 Rastreamento de cargas\n• 📍 Status de entregas\n\nComo posso ajudá-lo?"
-        
-        else:
-            if documents:
-                response_message = f"Encontrei {len(documents)} documento(s) que podem ser relevantes. Verifique os anexos."
-            else:
-                response_message = f"Olá {user_name}! Como posso ajudá-lo com consultas logísticas?"
-    
-    return response_message, attachments
+        logger.error(f"❌ CrewAI processing failed, falling back to basic processing: {str(e)}")
+        # Fallback to basic processing
+        return await basic_message_processing(message, user_context, session_id)
 
 def extract_search_terms(message: str) -> str:
     """Extract potential search terms from message"""
@@ -724,18 +759,65 @@ async def list_active_sessions():
 @app.get("/agents/list")
 async def list_agents():
     """List available agents"""
+    agents_list = [
+        "frontend_logistics_agent",
+        "AdminAgent", 
+        "LogisticsAgent",
+        "FinanceAgent"
+    ]
+    
+    # Add CrewAI agents if available
+    if logistics_crew:
+        crewai_status = logistics_crew.get_crew_status()
+        agents_list.extend([agent["name"] for agent in crewai_status["agents"]])
+    
     return {
-        "available_agents": [
-            "frontend_logistics_agent",
-            "AdminAgent", 
-            "LogisticsAgent",
-            "FinanceAgent"
-        ]
+        "available_agents": agents_list,
+        "crewai_enabled": logistics_crew is not None
     }
+
+@app.get("/agents/crewai/status")
+async def get_crewai_status():
+    """Get CrewAI agents detailed status"""
+    try:
+        if logistics_crew:
+            crew_status = logistics_crew.get_crew_status()
+            return {
+                "status": "active",
+                "crew_info": crew_status,
+                "integration_status": "enabled",
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "status": "inactive",
+                "crew_info": None,
+                "integration_status": "disabled",
+                "error": "LogisticsCrew not initialized",
+                "timestamp": datetime.now().isoformat()
+            }
+    except Exception as e:
+        logger.error(f"❌ Error getting CrewAI status: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/agents/{agent_name}/status")
 async def get_agent_status(agent_name: str):
     """Get agent status"""
+    # Check if this is a CrewAI agent
+    if logistics_crew and agent_name in ["Document Search Agent", "Document Analysis Agent", "Compliance Agent"]:
+        crew_status = logistics_crew.get_crew_status()
+        for agent in crew_status["agents"]:
+            if agent["name"] == agent_name:
+                return {
+                    "agent": agent_name,
+                    "status": agent["status"],
+                    "version": "1.0.0",
+                    "role": agent["role"],
+                    "tools": agent["tools"],
+                    "type": "crewai_agent"
+                }
+    
+    # Default agent status
     return {
         "agent": agent_name,
         "status": "active",
@@ -745,7 +827,8 @@ async def get_agent_status(agent_name: str):
             "shipment_tracking", 
             "delivery_status",
             "user_assistance"
-        ]
+        ],
+        "type": "standard_agent"
     }
 
 if __name__ == "__main__":
