@@ -55,6 +55,63 @@ async def chat_endpoint(message: dict):
         "status": "success"
     }
 
+@app.get("/chat/stats")
+async def get_chat_stats():
+    """Get chat system statistics"""
+    try:
+        # Import stats functions
+        from cache.chat_cache import get_cache_stats
+        from context.conversation_analyzer import get_conversation_analyzer
+        from llm_router import get_llm_stats, get_llm_health
+        
+        cache_stats = get_cache_stats()
+        analyzer = get_conversation_analyzer()
+        conversation_stats = analyzer.get_session_stats()
+        llm_stats = get_llm_stats()
+        llm_health = get_llm_health()
+        
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "cache": cache_stats,
+            "conversations": conversation_stats,
+            "llm": {
+                "usage": llm_stats,
+                "health": llm_health
+            },
+            "system_health": "healthy"
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "timestamp": datetime.now().isoformat(),
+            "system_health": "degraded"
+        }
+
+@app.post("/chat/feedback")
+async def submit_chat_feedback(feedback: dict):
+    """Submit feedback about chat interactions"""
+    try:
+        session_id = feedback.get("session_id")
+        rating = feedback.get("rating")  # 1-5
+        comment = feedback.get("comment", "")
+        message_id = feedback.get("message_id")
+        
+        # Log feedback for analysis
+        logger.info(f"📝 Chat feedback - Session: {session_id}, Rating: {rating}, Comment: {comment[:50]}...")
+        
+        # In a real system, you'd save this to a database
+        return {
+            "status": "success",
+            "message": "Feedback received, obrigado!",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error processing feedback: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
 @app.post("/agents/route")
 async def route_message(request: dict):
     """Route message to real frontend logistics agent with LLM and tools"""
@@ -82,57 +139,39 @@ async def route_message(request: dict):
             analyze_document_content as analyze_document_content_tool,
             get_document_statistics as get_document_statistics_tool
         )
+        from cache.chat_cache import get_cached_response, cache_response
+        from context.conversation_analyzer import analyze_conversation
         
         try:
+            # Check cache first
+            cache_key_context = {
+                "userId": user_context.get("userId"),
+                "role": user_context.get("role"),
+                "agent_name": agent_name
+            }
+            
+            cached_response = get_cached_response(message, cache_key_context)
+            if cached_response:
+                logger.info(f"✅ Returning cached response for user {user_context.get('userId')}")
+                # Mark as cached and return
+                cached_response["metadata"]["cached"] = True
+                return cached_response
+            
+            # Analyze conversation context
+            conversation_analysis = analyze_conversation(message, user_context, session_id)
+            
             # Determine task type and prepare prompt
             message_lower = message.lower()
             user_name = user_context.get('name', 'usuário')
             
-            # Enhanced intent detection with presupposition analysis
-            def analyze_query_intent(message_lower, original_message):
-                """Analyze query for specific intents and presuppositions"""
-                
-                # Document type mapping
-                doc_type_map = {
-                    'mdf': 'MDF', 'manifesto': 'MANIFESTO',
-                    'cte': 'CTE', 'ct-e': 'CTE',
-                    'bl': 'BL', 'bill': 'BL',
-                    'awl': 'AWL', 'nf': 'NF', 'nota': 'NF'
-                }
-                
-                # Patterns that indicate presupposition (user assumes docs exist)
-                presupposition_patterns = [
-                    'o que você pode me dizer sobre',
-                    'me fale sobre', 'conte sobre', 'analise',
-                    'quais são', 'como estão', 'status dos',
-                    'que tipo de', 'quantos', 'há quanto'
-                ]
-                
-                # Patterns that indicate search/lookup
-                search_patterns = [
-                    'buscar', 'procurar', 'encontrar', 'localizar',
-                    'preciso de', 'quero ver', 'mostre'
-                ]
-                
-                # Check for specific document types mentioned
-                mentioned_doc_types = []
-                for key, doc_type in doc_type_map.items():
-                    if key in message_lower:
-                        mentioned_doc_types.append(doc_type)
-                
-                # Determine intent type
-                has_presupposition = any(pattern in message_lower for pattern in presupposition_patterns)
-                has_search_intent = any(pattern in message_lower for pattern in search_patterns)
-                
-                return {
-                    'doc_types': mentioned_doc_types,
-                    'has_presupposition': has_presupposition,
-                    'has_search_intent': has_search_intent,
-                    'is_analysis_request': has_presupposition and mentioned_doc_types,
-                    'is_general_search': has_search_intent or not has_presupposition
-                }
-            
-            intent = analyze_query_intent(message_lower, message)
+            # Enhanced intent detection using conversation analysis
+            intent = {
+                'doc_types': conversation_analysis['doc_types'],
+                'has_presupposition': conversation_analysis['intent'] == 'presupposed_query',
+                'has_search_intent': conversation_analysis['intent'] in ['document_search', 'status_check'],
+                'is_analysis_request': conversation_analysis['intent'] in ['document_analysis', 'presupposed_query'] and conversation_analysis['doc_types'],
+                'is_general_search': conversation_analysis['intent'] in ['document_search', 'help_request']
+            }
             is_document_query = bool(intent['doc_types']) or any(keyword in message_lower for keyword in [
                 'documento', 'container', 'embarque', 'carga', 'search', 'busca', 'procur'
             ])
@@ -169,7 +208,14 @@ async def route_message(request: dict):
                         except:
                             stats_summary = "Estatísticas temporariamente indisponíveis"
                         
-                        # Create prompt for analysis-focused response
+                        # Create context-aware prompt for analysis-focused response
+                        context_info = f"""
+                        CONTEXTO CONVERSACIONAL:
+                        - Nível de expertise: {conversation_analysis.get('expertise_level', 'novice')}
+                        - Fluxo da conversa: {conversation_analysis.get('conversation_flow', 'exploration')}
+                        - Resumo: {conversation_analysis.get('context_summary', 'Conversa iniciada')}
+                        """
+                        
                         prompt = f"""
                         Você é um especialista em logística da MIT Tracking analisando documentos reais do sistema.
                         
@@ -177,20 +223,23 @@ async def route_message(request: dict):
                         Consulta: "{message}"
                         TIPOS DE DOCUMENTOS SOLICITADOS: {', '.join(doc_types)}
                         
+                        {context_info}
+                        
                         DADOS REAIS ENCONTRADOS NO SISTEMA:
                         {search_result}
                         
                         ESTATÍSTICAS DETALHADAS:
                         {stats_summary}
                         
-                        INSTRUÇÕES PARA ANÁLISE:
+                        INSTRUÇÕES PARA ANÁLISE ADAPTIVA:
                         1. O usuário PRESSUPÕE que existem documentos deste tipo no sistema
-                        2. Analise os dados reais encontrados e forneça insights específicos
+                        2. Adapte o nível de detalhamento ao expertise do usuário ({conversation_analysis.get('expertise_level', 'novice')})
                         3. Se encontrou documentos: extraia padrões, tendências e informações relevantes
                         4. Se não encontrou: explique claramente e sugira verificações
                         5. Forneça recomendações práticas baseadas nos dados
                         6. Use formatação profissional com seções organizadas
                         7. Seja específico sobre quantidades, tipos e características dos documentos
+                        8. Considere o contexto conversacional para respostas mais relevantes
                         
                         Responda como especialista analisando dados REAIS do sistema.
                         """
@@ -204,12 +253,21 @@ async def route_message(request: dict):
                         except:
                             stats_summary = "Estatísticas temporariamente indisponíveis"
                         
-                        # Create prompt for search-focused response  
+                        # Create context-aware prompt for search-focused response  
+                        context_info = f"""
+                        CONTEXTO CONVERSACIONAL:
+                        - Nível de expertise: {conversation_analysis.get('expertise_level', 'novice')}
+                        - Fluxo da conversa: {conversation_analysis.get('conversation_flow', 'exploration')}
+                        - Resumo: {conversation_analysis.get('context_summary', 'Conversa iniciada')}
+                        """
+                        
                         prompt = f"""
                         Você é um assistente especializado em logística da MIT Tracking.
                         
                         Usuário: {user_name}
                         Consulta: "{message}"
+                        
+                        {context_info}
                         
                         DADOS REAIS ENCONTRADOS:
                         {search_result}
@@ -217,12 +275,13 @@ async def route_message(request: dict):
                         ESTATÍSTICAS RECENTES:
                         {stats_summary}
                         
-                        INSTRUÇÕES:
+                        INSTRUÇÕES ADAPTIVAS:
                         1. Analise os dados reais encontrados na busca
-                        2. Forneça insights específicos baseados nos documentos encontrados
+                        2. Adapte o nível de detalhamento ao expertise do usuário ({conversation_analysis.get('expertise_level', 'novice')})
                         3. Se não encontrou documentos, explique e sugira termos alternativos
                         4. Use formatação profissional com emojis
                         5. Seja prático e específico nas recomendações
+                        6. Considere o contexto conversacional para respostas mais relevantes
                         
                         Responda como especialista em logística com base nos dados reais apresentados.
                         """
@@ -249,12 +308,21 @@ async def route_message(request: dict):
                     
                 task_type = TaskType.LOGISTICS
             else:
-                # General logistics query
+                # Context-aware general logistics query
+                context_info = f"""
+                CONTEXTO CONVERSACIONAL:
+                - Nível de expertise: {conversation_analysis.get('expertise_level', 'novice')}
+                - Fluxo da conversa: {conversation_analysis.get('conversation_flow', 'exploration')}
+                - Resumo: {conversation_analysis.get('context_summary', 'Conversa iniciada')}
+                """
+                
                 prompt = f"""
                 Você é um assistente especializado em logística da MIT Tracking.
                 
                 Usuário: {user_name}
                 Mensagem: "{message}"
+                
+                {context_info}
                 
                 CONTEXTO DO SISTEMA:
                 - Sistema: MIT Tracking (Move In Tech)
@@ -262,12 +330,14 @@ async def route_message(request: dict):
                 - Funcionalidades: Busca semântica, análise de compliance, estatísticas
                 - Especialização: Operações logísticas brasileiras
                 
-                INSTRUÇÕES:
+                INSTRUÇÕES ADAPTIVAS:
                 1. Responda como um especialista experiente em logística
-                2. Seja específico e prático nas recomendações
-                3. Use formatação profissional com emojis e seções organizadas
-                4. Forneça exemplos concretos quando relevante
-                5. Oriente sobre como usar melhor o sistema
+                2. Adapte o nível de detalhamento ao expertise do usuário ({conversation_analysis.get('expertise_level', 'novice')})
+                3. Seja específico e prático nas recomendações
+                4. Use formatação profissional com emojis e seções organizadas
+                5. Forneça exemplos concretos quando relevante
+                6. Oriente sobre como usar melhor o sistema
+                7. Considere o contexto conversacional para respostas mais personalizadas
                 
                 Forneça uma resposta completa e profissional.
                 """
@@ -278,11 +348,45 @@ async def route_message(request: dict):
                 prompt=prompt,
                 task_type=task_type,
                 preferred_provider=LLMProvider.AUTO,
-                max_tokens=800,
+                max_tokens=1200,
                 temperature=0.3
             )
             
             response_text = llm_response.content if llm_response else "Desculpe, não consegui processar sua solicitação no momento."
+            
+            # Enhanced response processing
+            attachments = []
+            action = None
+            data = None
+            
+            # Extract document references and create attachments
+            if is_document_query and "search_result" in locals():
+                try:
+                    # Parse search results for document attachments
+                    import re
+                    doc_refs = re.findall(r'Documento: ([^\n]+)', str(search_result))
+                    
+                    for doc_ref in doc_refs[:5]:  # Limit to 5 attachments
+                        if 'order_id' in doc_ref.lower():
+                            # Extract order ID for direct document access
+                            order_match = re.search(r'order_id[:\s]*([a-f0-9-]{36})', doc_ref, re.IGNORECASE)
+                            if order_match:
+                                order_id = order_match.group(1)
+                                attachments.append({
+                                    "type": "document_reference",
+                                    "title": f"Documentos da Order {order_id[:8]}...",
+                                    "description": doc_ref[:100] + "..." if len(doc_ref) > 100 else doc_ref,
+                                    "order_id": order_id,
+                                    "action": "view_order_documents"
+                                })
+                    
+                    # If we found document attachments, suggest an action
+                    if attachments:
+                        action = "show_documents"
+                        data = {"document_count": len(attachments)}
+                        
+                except Exception as attach_error:
+                    logger.warning(f"Error processing attachments: {attach_error}")
             
         except Exception as e:
             # Fallback response
@@ -307,16 +411,34 @@ Erro técnico: {error_msg[:100]}
 
 Como posso ajudar especificamente?"""
         
-        return {
+        final_response = {
             "message": response_text,
-            "action": None,
-            "data": None,
-            "attachments": [],
+            "action": action,
+            "data": data,
+            "attachments": attachments,
             "agent": agent_name,
             "timestamp": datetime.now().isoformat(),
             "session_id": session_id,
-            "success": True
+            "success": True,
+            "metadata": {
+                "model_used": llm_response.model_used if llm_response else "fallback",
+                "provider": llm_response.provider if llm_response else "none",
+                "tokens_used": llm_response.tokens_used if llm_response else 0,
+                "response_time": llm_response.response_time if llm_response else 0,
+                "intent_detected": "document_query" if is_document_query else "general_query",
+                "doc_types_mentioned": intent.get('doc_types', []) if 'intent' in locals() else [],
+                "cached": False,
+                "conversation_analysis": conversation_analysis,
+                "user_expertise_level": conversation_analysis.get('expertise_level', 'novice'),
+                "suggested_followups": conversation_analysis.get('suggested_followups', [])
+            }
         }
+        
+        # Cache the response (with appropriate TTL)
+        ttl = 1800 if is_document_query else 3600  # 30 min for docs, 1 hour for general
+        cache_response(message, cache_key_context, final_response, ttl)
+        
+        return final_response
     except Exception as e:
         # Fallback with error details for debugging
         import traceback
@@ -331,6 +453,73 @@ Como posso ajudar especificamente?"""
             "timestamp": datetime.now().isoformat(),
             "session_id": request_data.get("session_id"),
             "success": False
+        }
+
+@app.post("/cache/invalidate")
+async def invalidate_cache(request: dict):
+    """Invalidate cache entries matching a pattern"""
+    try:
+        pattern = request.get("pattern", "")
+        if not pattern:
+            return {"error": "Pattern is required"}
+        
+        from cache.chat_cache import invalidate_cache_pattern
+        invalidate_cache_pattern(pattern)
+        
+        return {
+            "status": "success",
+            "message": f"Cache entries matching '{pattern}' invalidated",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.get("/chat/insights/{session_id}")
+async def get_conversation_insights(session_id: str):
+    """Get insights about a specific conversation session"""
+    try:
+        from context.conversation_analyzer import get_conversation_analyzer
+        
+        analyzer = get_conversation_analyzer()
+        
+        if session_id not in analyzer.active_sessions:
+            return {
+                "error": "Session not found",
+                "session_id": session_id
+            }
+        
+        context = analyzer.active_sessions[session_id]
+        
+        # Generate detailed insights
+        insights = {
+            "session_id": session_id,
+            "user_id": context.user_id,
+            "conversation_summary": analyzer._summarize_context(context),
+            "total_turns": len(context.turns),
+            "user_expertise_level": context.user_expertise_level,
+            "conversation_flow": context.conversation_flow,
+            "active_documents": context.active_documents,
+            "recent_intents": [turn.intent for turn in context.turns[-5:]] if context.turns else [],
+            "document_types_discussed": list(set(
+                doc_type for turn in context.turns 
+                for doc_type in turn.doc_types
+            )),
+            "suggested_next_actions": analyzer._suggest_followups(context),
+            "conversation_patterns": analyzer._generate_insights(context),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        return insights
+        
+    except Exception as e:
+        return {
+            "error": str(e),
+            "session_id": session_id,
+            "timestamp": datetime.now().isoformat()
         }
 
 if __name__ == "__main__":
