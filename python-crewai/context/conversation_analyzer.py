@@ -178,10 +178,12 @@ class ConversationAnalyzer:
     def _extract_document_types(self, message: str) -> List[str]:
         """Extract mentioned document types"""
         doc_type_map = {
-            'mdf': 'MDF', 'manifesto': 'MANIFESTO',
-            'cte': 'CTE', 'ct-e': 'CTE',
-            'bl': 'BL', 'bill': 'BL',
-            'awl': 'AWL', 'nf': 'NF', 'nota': 'NF',
+            'mdf': 'MDF', 'mdfs': 'MDF', 'manifesto': 'MANIFESTO', 'manifestos': 'MANIFESTO',
+            'manifesto eletrônico': 'MDF', 'manifesto de documentos': 'MDF', 'mde': 'MDF',
+            'cte': 'CTE', 'ct-e': 'CTE', 'ctes': 'CTE', 
+            'bl': 'BL', 'bill': 'BL', 'bls': 'BL',
+            'awl': 'AWL', 'awls': 'AWL',
+            'nf': 'NF', 'nfe': 'NF', 'nf-e': 'NF', 'nota': 'NF', 'notas': 'NF',
             'invoice': 'INVOICE', 'fatura': 'INVOICE'
         }
         

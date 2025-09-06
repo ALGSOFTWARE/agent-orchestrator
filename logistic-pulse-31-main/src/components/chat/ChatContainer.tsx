@@ -16,6 +16,7 @@ export interface Message {
   type: "user" | "agent" | "system";
   content: string;
   timestamp: Date;
+  isLoading?: boolean;
   attachments?: {
     type: DocumentType;
     name: string;
@@ -75,7 +76,17 @@ Como posso ajudá-lo hoje?`,
       timestamp: new Date(),
     };
     
-    setMessages(prev => [...prev, newMessage]);
+    const loadingMessageId = (Date.now() + 1).toString();
+    const loadingMessage: Message = {
+      id: loadingMessageId,
+      type: "agent",
+      content: "Analisando sua mensagem...",
+      timestamp: new Date(),
+      isLoading: true,
+    };
+    
+    // Adicionar mensagem do usuário e mensagem de loading
+    setMessages(prev => [...prev, newMessage, loadingMessage]);
     
     try {
       // Usar a API real para processar a mensagem
@@ -87,14 +98,20 @@ Como posso ajudá-lo hoje?`,
       
       // Criar mensagem de resposta do agente
       const agentResponse: Message = {
-        id: (Date.now() + 1).toString(),
+        id: loadingMessageId, // Usar o mesmo ID para substituir a mensagem de loading
         type: "agent",
         content: response.message,
         timestamp: new Date(),
-        attachments: response.attachments || []
+        attachments: response.attachments || [],
+        isLoading: false,
       };
       
-      setMessages(prev => [...prev, agentResponse]);
+      // Substituir a mensagem de loading pela resposta real
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.id === loadingMessageId ? agentResponse : msg
+        )
+      );
       
       // Executar ações específicas baseadas na resposta
       if (response.action === 'show_document' && response.data) {
@@ -114,13 +131,19 @@ Como posso ajudá-lo hoje?`,
       const interpretation = interpreter.interpret(content);
       
       const errorResponse: Message = {
-        id: (Date.now() + 1).toString(),
+        id: loadingMessageId, // Usar o mesmo ID para substituir a mensagem de loading
         type: "agent",
         content: "Desculpe, estou com dificuldades para processar sua mensagem no momento. Tente novamente em alguns instantes.",
         timestamp: new Date(),
+        isLoading: false,
       };
       
-      setMessages(prev => [...prev, errorResponse]);
+      // Substituir a mensagem de loading pela mensagem de erro
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.id === loadingMessageId ? errorResponse : msg
+        )
+      );
       
       toast({
         title: "Erro de Conexão",

@@ -72,7 +72,7 @@ class FrontendLogisticsAgent:
             "CTE": ["cte", "ct-e", "conhecimento", "transporte", "frete"],
             "AWL": ["awl", "awb", "air waybill", "aéreo", "avião"],
             "BL": ["bl", "bill of lading", "conhecimento", "marítimo", "navio"],
-            "MANIFESTO": ["manifesto", "manifest", "lista", "carga"],
+            "MANIFESTO": ["manifesto", "manifest", "mdf", "mde", "lista", "carga", "manifesto eletrônico", "manifesto de documentos fiscais"],
             "NF": ["nf", "nfe", "nf-e", "nota fiscal", "fiscal"]
         }
         
@@ -202,10 +202,18 @@ Este documento foi encontrado usando inteligência artificial para busca semânt
             client=context.get("company")
         )
         
+        # Criar documento mock específico baseado no tipo detectado
+        if doc_type == "MANIFESTO":
+            doc_number = "MDF-2024-001234"
+            doc_display_type = "MDF (Manifesto Eletrônico)"
+        else:
+            doc_number = f"{doc_type}-2024-001234" if doc_type else "DOC-2024-001234"
+            doc_display_type = doc_type or "CT-e"
+            
         mock_document = {
             "id": "DOC-001",
-            "number": f"{doc_type}-2024-001234" if doc_type else "DOC-2024-001234",
-            "type": doc_type or "CT-e",
+            "number": doc_number,
+            "type": doc_display_type,
             "client": context.get("company", "Cliente Exemplo"),
             "status": "Validado",
             "upload_date": datetime.now().isoformat(),
@@ -393,7 +401,7 @@ Precisa de informações específicas sobre alguma carga ou documento?""",
             message=f"""Olá {context.get('name', '')}! Como posso ajudá-lo hoje?
 
 💬 **Posso te ajudar com:**
-• Consultar documentos logísticos (CT-e, NF-e, BL, Manifesto)
+• Consultar documentos logísticos (CT-e, NF-e, BL, MDF, Manifesto)
 • Verificar status de cargas e entregas
 • Acompanhar jornadas em andamento
 • Localizar documentos por número de embarque
@@ -401,8 +409,9 @@ Precisa de informações específicas sobre alguma carga ou documento?""",
 
 **Exemplo de comandos:**
 - "Consultar CT-e da carga ABC123"
+- "Mostrar MDF da empresa"
 - "Status da entrega para São Paulo"
-- "Mostrar jornadas em trânsito"
+- "Encontrar manifesto eletrônico"
 
 O que você gostaria de fazer?""",
             ui_component="HelpMenu"

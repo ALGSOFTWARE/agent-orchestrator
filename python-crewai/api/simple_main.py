@@ -173,8 +173,14 @@ async def route_message(request: dict):
                 'is_general_search': conversation_analysis['intent'] in ['document_search', 'help_request']
             }
             is_document_query = bool(intent['doc_types']) or any(keyword in message_lower for keyword in [
-                'documento', 'container', 'embarque', 'carga', 'search', 'busca', 'procur'
+                'documento', 'container', 'embarque', 'carga', 'search', 'busca', 'procur', 'mdf', 'manifesto'
             ])
+            
+            # Debug logging
+            print(f"🔍 DEBUG - Message: '{message}'")
+            print(f"🔍 DEBUG - Doc types detected: {intent['doc_types']}")
+            print(f"🔍 DEBUG - Intent: {conversation_analysis['intent']}")
+            print(f"🔍 DEBUG - Is document query: {is_document_query}")
             
             if is_document_query:
                 # Try to use document search tools with intelligent querying

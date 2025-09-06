@@ -5,6 +5,7 @@ import { Bot, User, Download, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Message } from "./ChatContainer";
 import { Button } from "@/components/ui/button";
+import { TypingIndicator } from "./TypingIndicator";
 
 interface ChatMessagesProps {
   messages: Message[];
@@ -69,14 +70,23 @@ export const ChatMessages = ({ messages }: ChatMessagesProps) => {
               )}
               
               <div className="flex-1">
-                <p className={cn(
-                  "text-sm",
-                  message.type === "user" 
-                    ? "text-brand-dark" 
-                    : "text-foreground"
-                )}>
-                  {message.content}
-                </p>
+                {message.isLoading ? (
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm text-muted-foreground italic">
+                      {message.content}
+                    </span>
+                    <TypingIndicator />
+                  </div>
+                ) : (
+                  <p className={cn(
+                    "text-sm",
+                    message.type === "user" 
+                      ? "text-brand-dark" 
+                      : "text-foreground"
+                  )}>
+                    {message.content}
+                  </p>
+                )}
                 
                 {message.attachments && message.attachments.length > 0 && (
                   <div className="mt-3 space-y-2">
