@@ -47,13 +47,102 @@ async def health_check():
 
 @app.post("/chat")
 async def chat_endpoint(message: dict):
-    """Endpoint simplificado para chat com agentes"""
-    return {
-        "agent": "MIT Logistics",
-        "response": f"Received: {message.get('content', '')}",
-        "timestamp": datetime.now().isoformat(),
-        "status": "success"
-    }
+    """Endpoint de chat que roteia para o agente inteligente"""
+    try:
+        # Extract message content
+        content = message.get('content', '')
+        session_id = message.get('session_id', 'default')
+        agent = message.get('agent', 'frontend_logistics_agent')
+        
+        if not content:
+            return {
+                "agent": "MIT Logistics",
+                "response": "Por favor, envie uma mensagem para que eu possa ajudá-lo.",
+                "timestamp": datetime.now().isoformat(),
+                "status": "error"
+            }
+        
+        # Route to intelligent agent
+        request_data = {
+            "agent_name": agent,
+            "user_context": {
+                "userId": "user_001",
+                "name": "Eduardo Silva",
+                "role": "Operador Logístico"
+            },
+            "request_data": {
+                "message": content,
+                "session_id": session_id
+            }
+        }
+        
+        # Try to use the intelligent agent
+        try:
+            agent_response = await route_message(request_data)
+            
+            # Format response for frontend
+            return {
+                "agent": agent_response.get("agent", "MIT Logistics"),
+                "response": agent_response.get("message", "Resposta processada com sucesso."),
+                "timestamp": datetime.now().isoformat(),
+                "status": "success",
+                "attachments": agent_response.get("attachments", []),
+                "action": agent_response.get("action"),
+                "data": agent_response.get("data")
+            }
+            
+        except Exception as agent_error:
+            # Fallback to simple response with capabilities
+            capabilities_response = f"""🤖 **MIT Tracking - Sistema Logístico Inteligente**
+
+Olá! Sou seu assistente especializado em logística. Posso ajudá-lo com:
+
+📋 **DOCUMENTOS LOGÍSTICOS**
+• Consultar CT-e, AWL, BL, Manifestos, Notas Fiscais
+• Verificar status e compliance de documentos
+• Buscar documentos por período, remetente, destinatário
+
+🚛 **RASTREAMENTO & ENTREGAS**
+• Status atual de cargas e containers
+• Tracking completo de embarques
+• Previsões de entrega e alertas
+
+📊 **ANÁLISES & RELATÓRIOS**
+• Estatísticas operacionais
+• KPIs de performance
+• Relatórios personalizados
+
+🔧 **SUPORTE TÉCNICO**
+• Resolução de problemas operacionais
+• Orientações sobre processos
+• Integração com sistemas
+
+**Sua mensagem:** "{content}"
+
+**Para começar, você pode:**
+• Perguntar sobre documentos específicos
+• Solicitar status de entregas
+• Pedir relatórios ou estatísticas
+• Fazer perguntas sobre logística
+
+⚠️ *Sistema de IA avançado temporariamente indisponível - Erro: {str(agent_error)[:100]}*
+
+Como posso ajudá-lo especificamente hoje?"""
+            
+            return {
+                "agent": "MIT Logistics",
+                "response": capabilities_response,
+                "timestamp": datetime.now().isoformat(),
+                "status": "success"
+            }
+            
+    except Exception as e:
+        return {
+            "agent": "MIT Logistics", 
+            "response": f"Erro no processamento: {str(e)}",
+            "timestamp": datetime.now().isoformat(),
+            "status": "error"
+        }
 
 @app.get("/chat/stats")
 async def get_chat_stats():

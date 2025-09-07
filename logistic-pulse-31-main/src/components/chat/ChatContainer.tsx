@@ -100,7 +100,7 @@ Como posso ajudá-lo hoje?`,
       const agentResponse: Message = {
         id: loadingMessageId, // Usar o mesmo ID para substituir a mensagem de loading
         type: "agent",
-        content: response.message,
+        content: response.content || response.message || "Resposta recebida",
         timestamp: new Date(),
         attachments: response.attachments || [],
         isLoading: false,
