@@ -140,3 +140,127 @@ Resposta com anexos → ChatMessages renderiza → DocumentModal se necessário
 - [ ] Fase 2: Busca Semântica
 - [ ] Fase 3: UI Components
 - [ ] Fase 4: Funcionalidades Avançadas
+
+---
+
+# ⚠️ Git Repository Management - IMPORTANT
+
+## 📁 Virtual Environment Exclusion Policy
+
+**NEVER commit virtual environment folders** (venv/, node_modules/, .venv/) to the repository. These folders contain:
+- Large binary files (>50MB)
+- Platform-specific binaries
+- Dependencies that should be installed via requirements.txt/package.json
+
+### 🚨 Problem Identification
+
+Large files in git history cause:
+- ✗ Slow repository operations (clone/fetch/push)
+- ✗ GitHub warnings for files >50MB
+- ✗ Repository bloat and performance issues
+- ✗ CI/CD pipeline failures due to timeout
+
+### 🛠️ Immediate Fix Steps
+
+When venv/ or node_modules/ are accidentally committed:
+
+```bash
+# 1. Remove from git index (but keep locally)
+git rm -r --cached venv/
+git rm -r --cached node_modules/
+git rm -r --cached */venv/
+git rm -r --cached */node_modules/
+
+# 2. Update .gitignore (see section below)
+# 3. Commit the removal
+git commit -m "chore: remove venv and node_modules from repository"
+
+# 4. Push changes
+git push origin feat/chat
+```
+
+### 🧹 Deep Clean History (Optional but Recommended)
+
+To completely remove large files from git history:
+
+```bash
+# Install git-filter-repo if not available
+pip install git-filter-repo
+
+# Remove venv directories from entire history
+git filter-repo --path venv/ --invert-paths
+git filter-repo --path node_modules/ --invert-paths
+
+# Force push (WARNING: rewrites history)
+git push origin --force
+```
+
+### 📝 Required .gitignore Patterns
+
+Ensure .gitignore contains:
+
+```gitignore
+# Python Virtual Environments
+venv/
+.venv/
+*/venv/
+*/.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Node.js Dependencies
+node_modules/
+*/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Large files and archives
+*.tar.gz
+*.zip
+*.7z
+*.dmg
+*.iso
+
+# IDE and OS files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+.coverage
+htmlcov/
+```
+
+### 🔍 Prevention Commands
+
+Before committing, always check for large files:
+
+```bash
+# Check for files >10MB
+find . -size +10M -not -path "./.*" -ls
+
+# Check git-tracked files >10MB
+git ls-tree -r -t -l --full-name HEAD | sort -n -k 4 | tail -10
+
+# Preview what will be committed
+git diff --cached --stat
+```
+
+### 📋 Repository Health Checklist
+
+Before pushing:
+- [ ] No venv/ or node_modules/ in git status
+- [ ] .gitignore properly configured
+- [ ] No files >50MB in commit
+- [ ] git diff --cached shows only code changes
