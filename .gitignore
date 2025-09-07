@@ -197,6 +197,10 @@ ENV/
 env.bak/
 venv.bak/
 .venv/
+*/venv/
+*/.venv/
+**/venv/
+**/.venv/
 .env
 
 # PyInstaller
@@ -231,11 +235,24 @@ models/
 training_data/
 datasets/
 
-# Large files
+# Large files and archives
 *.mp4
 *.avi
 *.mov
 *.mkv
+*.tar.gz
+*.tgz
+*.zip
+*.7z
+*.dmg
+*.iso
+*.deb
+*.rpm
+
+# Large binary files (>50MB limit)
+*.so.*
+*.dylib.*
+*.dll.*
 
 # Security
 *.pem
