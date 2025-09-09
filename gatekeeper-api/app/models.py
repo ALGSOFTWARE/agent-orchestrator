@@ -560,4 +560,4 @@ class ChatSession(BaseModel):
                 "message_count": 5,
                 "agents_used": ["LogisticsAgent", "AdminAgent"]
             }
-        }]
+        }
