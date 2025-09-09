@@ -460,5 +460,104 @@ __all__ = [
     "Order",
     "DocumentFile",
     "CTEDocument",
-    "BLDocument"
+    "BLDocument",
+    # Chat models
+    "ChatMessageType",
+    "ChatRequest",
+    "ChatResponse", 
+    "ChatMessage",
+    "ChatSession"
 ]
+
+
+# Chat-specific Enums and Models
+class ChatMessageType(str, Enum):
+    """Tipos de mensagem de chat"""
+    USER = "user"
+    AGENT = "agent"
+    SYSTEM = "system"
+
+
+class ChatRequest(BaseModel):
+    """Requisição de mensagem para chat"""
+    message: str = Field(..., min_length=1, max_length=5000, description="Mensagem do usuário")
+    session_id: str = Field(..., description="ID da sessão de chat")
+    agent_name: Optional[str] = Field(None, description="Nome do agente específico (opcional)")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "message": "Rastrear embarque ABC123",
+                "session_id": "550e8400-e29b-41d4-a716-446655440000",
+                "agent_name": "LogisticsAgent"
+            }
+        }
+
+
+class ChatResponse(BaseModel):
+    """Resposta de mensagem do chat"""
+    message_id: str = Field(..., description="ID único da mensagem")
+    content: str = Field(..., description="Conteúdo da resposta do agente")
+    agent_name: str = Field(..., description="Nome do agente que respondeu")
+    timestamp: datetime = Field(..., description="Timestamp da resposta")
+    session_id: str = Field(..., description="ID da sessão")
+    attachments: List[Dict[str, Any]] = Field(default_factory=list, description="Anexos opcionais")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Metadados adicionais")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "message_id": "msg_12345",
+                "content": "Embarque ABC123 está em trânsito, chegada prevista para amanhã",
+                "agent_name": "LogisticsAgent",
+                "timestamp": "2025-01-15T10:30:00Z",
+                "session_id": "550e8400-e29b-41d4-a716-446655440000",
+                "attachments": [],
+                "metadata": {"processing_time": 1.2, "confidence": 0.95}
+            }
+        }
+
+
+class ChatMessage(BaseModel):
+    """Modelo de mensagem individual de chat"""
+    id: str = Field(..., description="ID único da mensagem")
+    type: ChatMessageType = Field(..., description="Tipo da mensagem")
+    content: str = Field(..., description="Conteúdo da mensagem")
+    timestamp: datetime = Field(..., description="Timestamp da mensagem")
+    session_id: str = Field(..., description="ID da sessão")
+    agent_name: Optional[str] = Field(None, description="Nome do agente (se aplicável)")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": "msg_12345",
+                "type": "user",
+                "content": "Onde está minha carga?",
+                "timestamp": "2025-01-15T10:30:00Z",
+                "session_id": "550e8400-e29b-41d4-a716-446655440000"
+            }
+        }
+
+
+class ChatSession(BaseModel):
+    """Modelo de sessão de chat"""
+    session_id: str = Field(..., description="ID único da sessão")
+    user_id: str = Field(..., description="ID do usuário")
+    session_name: Optional[str] = Field(None, description="Nome da sessão")
+    created_at: datetime = Field(..., description="Data de criação")
+    last_activity: datetime = Field(..., description="Última atividade")
+    message_count: int = Field(default=0, description="Número de mensagens")
+    agents_used: List[str] = Field(default_factory=list, description="Agentes utilizados")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "session_id": "550e8400-e29b-41d4-a716-446655440000",
+                "user_id": "user_123",
+                "session_name": "Chat sobre rastreamento",
+                "created_at": "2025-01-15T10:00:00Z",
+                "last_activity": "2025-01-15T10:30:00Z",
+                "message_count": 5,
+                "agents_used": ["LogisticsAgent", "AdminAgent"]
+            }
+        }]
