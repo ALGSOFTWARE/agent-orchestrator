@@ -106,7 +106,7 @@ start_crewai() {
 # Função para iniciar frontend (rápido)
 start_frontend() {
     echo -e "${BLUE}⚛️ Iniciando Frontend React...${NC}"
-    cd frontend
+    cd original-logistic-pulse
     
     if check_port 3000; then
         echo -e "${YELLOW}⚠️ Frontend já rodando na porta 3000${NC}"

@@ -226,7 +226,7 @@ start_crewai() {
 # Função para iniciar frontend
 start_frontend() {
     echo -e "${BLUE}⚛️  Iniciando Frontend React...${NC}"
-    cd frontend
+    cd original-logistic-pulse
     
     # Next.js escolherá automaticamente uma porta disponível
     echo -e "${BLUE}🔍 Next.js tentará usar a porta 3000 ou uma alternativa...${NC}"
