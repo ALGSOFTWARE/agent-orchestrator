@@ -22,7 +22,7 @@ class CrewAIService:
     
     def __init__(self):
         # URL do microserviço de agentes CrewAI
-        self.crewai_base_url = "http://localhost:8000"  # Porta do python-crewai
+        self.crewai_base_url = "http://localhost:8002"  # Porta do python-crewai
         self.timeout = 30.0  # Timeout para requisições
         self.max_retries = 3
         

@@ -12,6 +12,10 @@ from beanie import init_beanie
 from typing import Optional, List
 
 from .models import User, Client, Context, Container, Shipment, TrackingEvent, Order, DocumentFile, CTEDocument, BLDocument
+from .models_mittracking import (
+    MitUser, Company, Journey, Delivery, LogisticsDocument, Incident, 
+    ChatConversation, Driver, Vehicle, Report, UserContext, GlobalContext, ConversationHistory
+)
 
 logger = logging.getLogger("GatekeeperAPI.Database")
 
@@ -55,7 +59,21 @@ async def init_database():
                 Order,
                 DocumentFile,
                 CTEDocument,
-                BLDocument
+                BLDocument,
+                # MitTracking models
+                MitUser,
+                Company,
+                Journey,
+                Delivery,
+                LogisticsDocument,
+                Incident,
+                ChatConversation,
+                Driver,
+                Vehicle,
+                Report,
+                UserContext,
+                GlobalContext,
+                ConversationHistory
             ]
         )
         
