@@ -1,0 +1,208 @@
+# 🐳 MIT Logistics Frontend - Docker Compose
+# Sistema completo: Frontend + APIs + Proxy
+
+version: '3.8'
+
+networks:
+  mit-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+services:
+  # 🌐 Nginx Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: mit-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      - frontend
+      - graphql-api
+      - gatekeeper
+    networks:
+      - mit-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # 🎨 Frontend React
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: mit-frontend
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=/api
+      - NEXT_PUBLIC_GATEKEEPER_URL=/gatekeeper
+      - NEXT_PUBLIC_OLLAMA_URL=/ollama
+      - NEXT_TELEMETRY_DISABLED=1
+    volumes:
+      - frontend-cache:/app/.next/cache
+    networks:
+      - mit-network
+    restart: unless-stopped
+    depends_on:
+      - graphql-api
+      - gatekeeper
+    healthcheck:
+      test: ["CMD", "node", "healthcheck.js"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # 📊 GraphQL API
+  graphql-api:
+    build:
+      context: ../python-crewai
+      dockerfile: Dockerfile.api
+    container_name: mit-graphql-api
+    ports:
+      - "8000:8000"
+    environment:
+      - API_PORT=8000
+      - API_HOST=0.0.0.0
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama3.2:3b
+      - ENVIRONMENT=production
+      - DEBUG=false
+    volumes:
+      - api-logs:/app/logs
+    networks:
+      - mit-network
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # 🚪 Gatekeeper Agent
+  gatekeeper:
+    build:
+      context: ../python-crewai
+      dockerfile: Dockerfile.api
+    container_name: mit-gatekeeper
+    command: python gatekeeper_agent.py
+    ports:
+      - "8001:8001"
+    environment:
+      - GATEKEEPER_PORT=8001
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama3.2:3b
+      - LOG_LEVEL=INFO
+    volumes:
+      - gatekeeper-logs:/app/logs
+    networks:
+      - mit-network
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # 🧠 Ollama LLM
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mit-ollama
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - mit-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # 📊 Prometheus (Monitoring)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mit-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - mit-network
+    restart: unless-stopped
+
+  # 📈 Grafana (Dashboards)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mit-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./docker/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./docker/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - mit-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+volumes:
+  # Persistent data
+  ollama-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  
+  # Logs
+  nginx-logs:
+    driver: local
+  api-logs:
+    driver: local
+  gatekeeper-logs:
+    driver: local
+  
+  # Cache
+  frontend-cache:
+    driver: local

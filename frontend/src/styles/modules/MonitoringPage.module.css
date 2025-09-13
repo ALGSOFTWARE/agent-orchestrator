@@ -1,0 +1,330 @@
+/* 📊 MIT Logistics Frontend - Monitoring Page Styles */
+
+.container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  margin-bottom: var(--spacing-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.title {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-foreground);
+}
+
+.description {
+  font-size: var(--font-size-lg);
+  color: var(--color-muted-foreground);
+  max-width: 600px;
+}
+
+.lastUpdate {
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.lastUpdate span {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-foreground);
+}
+
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3xl);
+  overflow: auto;
+}
+
+/* === HEADER === */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+}
+
+.headerContent {
+  flex: 1;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-shrink: 0;
+}
+
+/* === SECTIONS === */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-foreground);
+}
+
+/* === GRIDS === */
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+/* === SERVICE GRID === */
+.serviceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.serviceCard {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  transition: all var(--transition-fast);
+}
+
+.serviceCard:hover {
+  border-color: var(--color-primary-200);
+  box-shadow: var(--shadow-md);
+}
+
+.serviceHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.serviceIcon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.serviceInfo {
+  flex: 1;
+}
+
+.serviceInfo h3 {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-foreground);
+  margin-bottom: 2px;
+}
+
+.serviceInfo p {
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+  margin: 0;
+}
+
+.serviceStatus {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.serviceStatus[data-status="healthy"] {
+  background: var(--color-success);
+}
+
+.serviceStatus[data-status="unhealthy"] {
+  background: var(--color-error);
+}
+
+.serviceStatus[data-status="loading"] {
+  background: var(--color-warning);
+}
+
+.serviceMetrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metricLabel {
+  font-size: var(--font-size-xs);
+  color: var(--color-muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metricValue {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-foreground);
+}
+
+/* === METRICS GRID === */
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.metricCard {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  transition: all var(--transition-fast);
+}
+
+.metricCard:hover {
+  border-color: var(--color-primary-200);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.metricHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--spacing-md);
+}
+
+.metricHeader h3 {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-muted-foreground);
+  margin: 0;
+}
+
+.metricIcon {
+  font-size: var(--font-size-lg);
+}
+
+.metricNumber {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-foreground);
+  margin-bottom: var(--spacing-sm);
+}
+
+.metricTrend {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+}
+
+.trendIcon {
+  font-size: var(--font-size-sm);
+}
+
+/* === ACTIVITY FEED === */
+.activityFeed {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.activityItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+  transition: background-color var(--transition-fast);
+}
+
+.activityItem:hover {
+  background: var(--color-muted);
+}
+
+.activityItem:last-child {
+  border-bottom: none;
+}
+
+.activityIcon {
+  font-size: var(--font-size-lg);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.activityContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.activityText {
+  font-size: var(--font-size-sm);
+  color: var(--color-foreground);
+  line-height: 1.4;
+}
+
+.activityTime {
+  font-size: var(--font-size-xs);
+  color: var(--color-muted-foreground);
+}
+
+/* === PULSE ANIMATION === */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.pulse {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: inherit;
+  animation: pulse 2s infinite;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 768px) {
+  .serviceGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .metricsGrid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+
+  .serviceMetrics {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-sm);
+  }
+}
+
+@media (max-width: 480px) {
+  .metricsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .metricHeader {
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    align-items: flex-start;
+  }
+}
