@@ -532,6 +532,160 @@ async def clear_vector_search_cache():
         )
 
 
+@router.get("/admin/all-documents")
+async def list_all_documents_admin(
+    limit: int = Query(100, description="Número máximo de documentos a retornar"),
+    skip: int = Query(0, description="Número de documentos a pular"),
+    category: Optional[DocumentCategory] = Query(None, description="Filtrar por categoria"),
+    status: Optional[str] = Query(None, description="Filtrar por status de processamento"),
+    order_id: Optional[str] = Query(None, description="Filtrar por Order específica")
+):
+    """
+    Lista TODOS os documentos do sistema - endpoint exclusivo para administradores
+    Usado pela rota /documentos do frontend para visualização administrativa
+    """
+    try:
+        # Construir query de filtro
+        query = {}
+        if category:
+            query["category"] = category
+        if status:
+            query["processing_status"] = status
+        if order_id:
+            query["order_id"] = order_id
+        
+        # Buscar documentos com paginação
+        documents = await DocumentFile.find(query).skip(skip).limit(limit).sort(-DocumentFile.uploaded_at).to_list()
+        
+        # Contar total
+        total = await DocumentFile.find(query).count()
+        
+        # Enriquecer dados com informações das Orders
+        enriched_documents = []
+        for doc in documents:
+            # Buscar Order relacionada
+            order = None
+            if doc.order_id:
+                order = await Order.find_one(Order.order_id == doc.order_id)
+            
+            enriched_doc = {
+                "id": str(doc.id),
+                "file_id": doc.file_id,
+                "original_name": doc.original_name,
+                "category": doc.category.value if doc.category else None,
+                "file_type": doc.file_type,
+                "file_extension": doc.file_extension,
+                "size_bytes": doc.size_bytes,
+                "processing_status": doc.processing_status.value if doc.processing_status else None,
+                "uploaded_at": doc.uploaded_at.isoformat() if doc.uploaded_at else None,
+                "indexed_at": doc.indexed_at.isoformat() if doc.indexed_at else None,
+                "s3_url": doc.s3_url,
+                "is_public": doc.is_public,
+                "tags": doc.tags or [],
+                "has_embedding": bool(doc.embedding),
+                "embedding_model": doc.embedding_model,
+                "text_content_available": bool(doc.text_content),
+                "text_content_length": len(doc.text_content) if doc.text_content else 0,
+                "order_id": doc.order_id,
+                "order_info": {
+                    "title": order.title if order else None,
+                    "customer_name": order.customer_name if order else None,
+                    "status": order.status.value if order and order.status else None,
+                    "order_type": order.order_type.value if order and order.order_type else None,
+                    "created_at": order.created_at.isoformat() if order and order.created_at else None
+                } if order else None,
+                "actions": {
+                    "can_download": bool(doc.s3_key),
+                    "can_view_text": bool(doc.text_content),
+                    "can_reprocess": True
+                }
+            }
+            enriched_documents.append(enriched_doc)
+        
+        # Estatísticas agregadas
+        stats = await get_document_stats()
+        
+        return {
+            "documents": enriched_documents,
+            "pagination": {
+                "total": total,
+                "limit": limit,
+                "skip": skip,
+                "has_more": skip + len(documents) < total,
+                "current_page": (skip // limit) + 1,
+                "total_pages": (total + limit - 1) // limit
+            },
+            "filters": {
+                "category": category,
+                "status": status,
+                "order_id": order_id
+            },
+            "stats": stats,
+            "admin_features": {
+                "bulk_operations_available": True,
+                "reprocessing_available": True,
+                "full_text_search": True,
+                "semantic_search": True
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao listar documentos para admin: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro interno ao listar documentos: {str(e)}"
+        )
+
+
+async def get_document_stats():
+    """Gera estatísticas agregadas dos documentos"""
+    try:
+        # Total de documentos
+        total_docs = await DocumentFile.find({}).count()
+        
+        # Por categoria
+        categories_stats = {}
+        for category in DocumentCategory:
+            count = await DocumentFile.find(DocumentFile.category == category).count()
+            if count > 0:
+                categories_stats[category.value] = count
+        
+        # Por status de processamento
+        status_stats = {}
+        for status in ProcessingStatus:
+            count = await DocumentFile.find(DocumentFile.processing_status == status).count()
+            if count > 0:
+                status_stats[status.value] = count
+        
+        # Estatísticas de texto
+        docs_with_text = await DocumentFile.find({"text_content": {"$exists": True, "$ne": None}}).count()
+        docs_with_embedding = await DocumentFile.find({"embedding": {"$exists": True, "$ne": None}}).count()
+        
+        # Total de Orders vinculadas
+        orders_with_docs = await Order.find({"document_files": {"$exists": True, "$not": {"$size": 0}}}).count()
+        
+        return {
+            "total_documents": total_docs,
+            "by_category": categories_stats,
+            "by_processing_status": status_stats,
+            "text_extraction": {
+                "documents_with_text": docs_with_text,
+                "text_extraction_rate": round((docs_with_text / total_docs * 100), 2) if total_docs > 0 else 0
+            },
+            "embeddings": {
+                "documents_with_embeddings": docs_with_embedding,
+                "embedding_rate": round((docs_with_embedding / total_docs * 100), 2) if total_docs > 0 else 0
+            },
+            "orders": {
+                "orders_with_documents": orders_with_docs
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Erro ao gerar estatísticas: {str(e)}")
+        return {"error": str(e)}
+
+
 # === DOCUMENT ACCESS ENDPOINTS === #
 
 @router.get("/{file_id}/metadata")

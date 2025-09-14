@@ -8,7 +8,7 @@ Rotas para o sistema de chat inteligente:
 - GET /chat/sessions - Listar sessões do usuário
 """
 
-from fastapi import APIRouter, HTTPException, status, Query, Body
+from fastapi import APIRouter, HTTPException, status, Query, Body, Depends
 from typing import List, Optional, Dict, Any
 import logging
 from datetime import datetime
@@ -17,6 +17,7 @@ import uuid
 from ..models import ChatMessage, ChatSession, ChatRequest, ChatResponse
 from ..database import DatabaseService
 from ..services.crewai_service import CrewAIService
+from ..middleware.auth import get_current_user, get_current_user_optional, extract_user_context
 
 logger = logging.getLogger("GatekeeperAPI.Chat")
 router = APIRouter()
@@ -28,22 +29,18 @@ crewai_service = CrewAIService()
 @router.post("/message", response_model=ChatResponse)
 async def send_chat_message(
     chat_request: ChatRequest,
-    current_user_id: str = Query(..., description="ID do usuário que faz a requisição"),
-    current_user_role: str = Query(..., description="Role do usuário que faz a requisição")
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Envia mensagem para o sistema de agentes IA e retorna resposta
+    Agora usa autenticação JWT automática
     """
     try:
-        logger.info(f"💬 Nova mensagem de chat do usuário {current_user_id}")
+        logger.info(f"💬 Nova mensagem de chat do usuário {current_user['id']} ({current_user['name']})")
         
-        # Criar contexto do usuário
-        user_context = {
-            "userId": current_user_id,
-            "role": current_user_role,
-            "sessionId": chat_request.session_id,
-            "timestamp": datetime.now().isoformat()
-        }
+        # Extrair contexto completo do usuário autenticado
+        user_context = extract_user_context(current_user)
+        user_context["sessionId"] = chat_request.session_id
         
         # Determinar agente baseado no tipo de mensagem ou usar LogisticsAgent por padrão
         agent_name = chat_request.agent_name or "LogisticsAgent"
@@ -65,7 +62,7 @@ async def send_chat_message(
         
         # Salvar mensagem do usuário no contexto
         await DatabaseService.add_context(
-            user_id=current_user_id,
+            user_id=current_user["id"],
             input_text=chat_request.message,
             output_text=agent_message_content,
             agents=[agent_name],
@@ -73,7 +70,9 @@ async def send_chat_message(
             metadata={
                 "agent_used": agent_name,
                 "response_status": agent_response.get("status", "unknown"),
-                "processing_time": agent_response.get("processing_time", 0)
+                "processing_time": agent_response.get("processing_time", 0),
+                "user_name": current_user["name"],
+                "user_role": current_user["role"]
             }
         )
         
@@ -104,10 +103,10 @@ async def send_chat_message(
 
 @router.get("/history")
 async def get_chat_history(
-    current_user_id: str = Query(..., description="ID do usuário"),
     session_id: Optional[str] = Query(None, description="ID da sessão específica"),
     limit: int = Query(50, ge=1, le=200, description="Limite de mensagens"),
-    days_back: int = Query(7, ge=1, le=365, description="Dias para voltar no histórico")
+    days_back: int = Query(7, ge=1, le=365, description="Dias para voltar no histórico"),
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Retorna histórico de conversas do usuário
@@ -115,9 +114,9 @@ async def get_chat_history(
     try:
         # Usar o sistema de contexto existente
         context_data = await get_user_context(
-            user_id=current_user_id,
-            current_user_id=current_user_id,
-            current_user_role="user",  # Assumindo role básico
+            user_id=current_user["id"],
+            current_user_id=current_user["id"],
+            current_user_role=current_user["role"],
             limit=limit,
             session_id=session_id,
             days_back=days_back
@@ -164,8 +163,8 @@ async def get_chat_history(
 
 @router.post("/session")
 async def create_chat_session(
-    current_user_id: str = Query(..., description="ID do usuário"),
-    session_name: Optional[str] = Body(None, description="Nome da sessão")
+    session_name: Optional[str] = Body(None, description="Nome da sessão"),
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Cria uma nova sessão de chat
@@ -175,7 +174,7 @@ async def create_chat_session(
         
         # Salvar contexto inicial da sessão
         await DatabaseService.add_context(
-            user_id=current_user_id,
+            user_id=current_user["id"],
             input_text="NOVA_SESSAO_INICIADA",
             output_text=f"Sessão de chat iniciada: {session_name or 'Chat Inteligente'}",
             agents=["SystemAgent"],
@@ -183,7 +182,9 @@ async def create_chat_session(
             metadata={
                 "session_name": session_name,
                 "session_type": "chat",
-                "created_at": datetime.now().isoformat()
+                "created_at": datetime.now().isoformat(),
+                "user_name": current_user["name"],
+                "user_role": current_user["role"]
             }
         )
         
@@ -191,7 +192,8 @@ async def create_chat_session(
             "session_id": session_id,
             "session_name": session_name or "Nova Conversa",
             "created_at": datetime.now().isoformat(),
-            "user_id": current_user_id
+            "user_id": current_user["id"],
+            "user_name": current_user["name"]
         }
         
     except Exception as e:
@@ -204,8 +206,8 @@ async def create_chat_session(
 
 @router.get("/sessions")
 async def get_user_chat_sessions(
-    current_user_id: str = Query(..., description="ID do usuário"),
-    days_back: int = Query(30, ge=1, le=365, description="Dias para voltar")
+    days_back: int = Query(30, ge=1, le=365, description="Dias para voltar"),
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Lista sessões de chat do usuário
@@ -215,9 +217,9 @@ async def get_user_chat_sessions(
         from .context import get_user_sessions
         
         sessions_data = await get_user_sessions(
-            user_id=current_user_id,
-            current_user_id=current_user_id,
-            current_user_role="user",
+            user_id=current_user["id"],
+            current_user_id=current_user["id"],
+            current_user_role=current_user["role"],
             days_back=days_back
         )
         
@@ -234,7 +236,8 @@ async def get_user_chat_sessions(
             })
         
         return {
-            "user_id": current_user_id,
+            "user_id": current_user["id"],
+            "user_name": current_user["name"],
             "sessions": chat_sessions,
             "total": len(chat_sessions)
         }

@@ -176,19 +176,109 @@ async def auth_callback(payload: AuthPayload):
         )
 
 
-@router.get("/login")
-async def auth_login(redirect_uri: str = None):
+@router.post("/login")
+async def auth_login(
+    email: str,
+    password: str = None,
+    remember_me: bool = False
+):
     """
-    Endpoint que redireciona para o Identity Provider
-    Em produção, isso redirecionaria para Google, Microsoft, etc.
+    Endpoint de login simplificado que retorna JWT token
+    Para demonstração, aceita qualquer email e retorna token de admin
     """
-    # Por enquanto, retorna informações de como fazer login
+    try:
+        logger.info(f"🔐 Tentativa de login para: {email}")
+        
+        # Para demonstração, sempre retornar usuário admin
+        # Em produção, validar credenciais no banco de dados
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email é obrigatório"
+            )
+        
+        # Buscar ou criar usuário no banco
+        user = await DatabaseService.get_user_by_email(email)
+        if not user:
+            # Criar usuário admin de demonstração
+            user = await DatabaseService.create_user(
+                name="Administrador Sistema",
+                email=email,
+                role="admin"
+            )
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Erro ao processar usuário"
+            )
+        
+        # Importar middleware de auth
+        from ..middleware.auth import AuthMiddleware, extract_user_context
+        
+        # Criar token JWT
+        user_data = {
+            "id": str(user.id),
+            "email": user.email,
+            "name": user.name,
+            "role": user.role or "admin"
+        }
+        
+        access_token = AuthMiddleware.create_access_token(user_data)
+        
+        # Preparar contexto do usuário
+        user_context = extract_user_context({
+            "id": str(user.id),
+            "email": user.email,
+            "name": user.name,
+            "role": user.role or "admin"
+        })
+        
+        logger.info(f"✅ Login bem-sucedido para {email}")
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "expires_in": 86400,  # 24 horas
+            "user": {
+                "id": str(user.id),
+                "name": user.name,
+                "email": user.email,
+                "role": user.role or "admin"
+            },
+            "context": user_context
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Erro no login: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro interno no login"
+        )
+
+
+@router.get("/demo-login")
+async def demo_login():
+    """
+    Endpoint de login de demonstração que retorna token admin
+    """
+    from ..middleware.auth import create_demo_admin_token
+    
+    token = create_demo_admin_token()
+    
     return {
-        "message": "Redirecionamento para Identity Provider",
-        "redirect_uri": redirect_uri,
-        "supported_providers": ["Google", "Microsoft", "Auth0"],
-        "callback_url": "/auth/callback",
-        "instructions": "Envie um POST para /auth/callback com o payload de autenticação"
+        "access_token": token,
+        "token_type": "bearer",
+        "expires_in": 86400,
+        "user": {
+            "id": "admin-demo",
+            "name": "Administrador Sistema",
+            "email": "admin@logistica.com.br",
+            "role": "admin"
+        },
+        "message": "Token de demonstração criado"
     }
 
 
