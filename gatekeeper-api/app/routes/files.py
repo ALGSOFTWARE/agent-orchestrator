@@ -2,7 +2,7 @@
 import boto3
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Query
 from botocore.exceptions import NoCredentialsError, ClientError
-from typing import Optional
+from typing import Optional, Dict
 import magic
 import os
 import uuid
@@ -108,7 +108,11 @@ async def upload_file(
         # Log inicial
         document_file.add_processing_log(f"Arquivo enviado para S3: {unique_filename}")
         await document_file.save()
-        
+
+        # Atualizar metadata da order para refletir o novo documento
+        order.add_document(document_file, user_id="upload_service")
+        await order.save()
+
         # FASE 2: Processamento inteligente assíncrono
         processing_result = None
         logger.info(f"🔄 Iniciando processamento OCR para arquivo: {file.filename}")
@@ -702,6 +706,37 @@ async def get_document_metadata(file_id: str):
         if document.order_id:
             order = await Order.find_one(Order.order_id == document.order_id)
         
+        # Preparar URLs de acesso
+        download_url = None
+        preview_url = None
+        access_issue: Optional[Dict[str, Any]] = None
+
+        if document.s3_key:
+            if document.is_public and document.s3_url:
+                download_url = document.s3_url
+                preview_url = document.s3_url
+            else:
+                if all([S3_BUCKET, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]):
+                    try:
+                        download_url = s3_client.generate_presigned_url(
+                            'get_object',
+                            Params={'Bucket': S3_BUCKET, 'Key': document.s3_key},
+                            ExpiresIn=900
+                        )
+                        preview_url = download_url
+                    except Exception as e:
+                        logger.warning(f"Não foi possível gerar URL assinada para {document.file_id}: {e}")
+                        access_issue = {
+                            "requires_credentials": True,
+                            "message": "Não foi possível gerar link temporário para o documento. Verifique as credenciais da AWS.",
+                            "error": str(e)
+                        }
+                else:
+                    access_issue = {
+                        "requires_credentials": True,
+                        "message": "Credenciais/configuração da AWS ausentes. Defina S3_BUCKET, AWS_REGION, AWS_ACCESS_KEY_ID e AWS_SECRET_ACCESS_KEY para habilitar visualização direta.",
+                    }
+
         # Preparar metadados completos
         metadata = {
             "document": {
@@ -710,6 +745,8 @@ async def get_document_metadata(file_id: str):
                 "original_name": document.original_name,
                 "s3_key": document.s3_key,
                 "s3_url": document.s3_url,
+                "preview_url": preview_url,
+                "download_url": download_url,
                 "file_type": document.file_type,
                 "file_extension": document.file_extension,
                 "size_bytes": document.size_bytes,
@@ -721,6 +758,8 @@ async def get_document_metadata(file_id: str):
                 "has_embedding": bool(document.embedding),
                 "embedding_model": document.embedding_model,
                 "text_content_length": len(document.text_content) if document.text_content else 0,
+                "text_content_available": bool(document.text_content),
+                "access_count": document.access_count,
                 "order_id": document.order_id
             },
             "order": {
@@ -734,7 +773,9 @@ async def get_document_metadata(file_id: str):
             "access": {
                 "can_download": bool(document.s3_key),
                 "signed_url_available": bool(document.s3_key),
-                "text_preview_available": bool(document.text_content)
+                "text_preview_available": bool(document.text_content),
+                "requires_credentials": access_issue.get("requires_credentials") if access_issue else False,
+                "message": access_issue.get("message") if access_issue else None,
             }
         }
         
@@ -928,7 +969,10 @@ async def view_file(file_id: str):
             )
         
         if not all([S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION]):
-            raise HTTPException(status_code=500, detail="Credenciais da AWS não configuradas.")
+            raise HTTPException(
+                status_code=503,
+                detail="Credenciais/configuração da AWS não configuradas. Defina S3_BUCKET, AWS_REGION, AWS_ACCESS_KEY_ID e AWS_SECRET_ACCESS_KEY para habilitar visualização direta."
+            )
         
         try:
             # Baixar arquivo do S3
@@ -976,4 +1020,3 @@ async def view_file(file_id: str):
             status_code=500,
             detail=f"Erro interno ao servir arquivo: {str(e)}"
         )
-
