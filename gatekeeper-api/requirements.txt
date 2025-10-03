@@ -46,11 +46,11 @@ PyPDF2==3.0.1
 
 # Embeddings via API (SEM modelos locais - economia de 2GB+ RAM!)
 aiohttp==3.9.1
-numpy==1.24.3
+numpy>=1.26.0
 sentence-transformers==5.1.1
-torch==2.8.0
-torchvision==0.23.0
-torchaudio==2.8.0
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
 
 # Processamento de texto
 nltk==3.8.1
@@ -61,4 +61,4 @@ redis==5.0.1
 
 # FASE 3: Visualizações e Análise de Dados
 # Machine Learning para redução de dimensionalidade
-scikit-learn==1.3.2
+scikit-learn>=1.4.0
