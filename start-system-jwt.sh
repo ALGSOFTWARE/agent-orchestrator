@@ -93,9 +93,11 @@ start_main_api() {
 
     # Verificar se venv existe
     if [ ! -d "venv" ]; then
-        echo -e "${RED}❌ Ambiente virtual não encontrado. Criando...${NC}"
+        echo -e "${YELLOW}⚠️ Ambiente virtual não encontrado. Criando...${NC}"
         python3 -m venv venv
         source venv/bin/activate
+        echo -e "${BLUE}📦 Instalando dependências da API Principal...${NC}"
+        pip install --upgrade pip
         pip install -r requirements.txt
     else
         source venv/bin/activate
@@ -121,9 +123,11 @@ start_crewai_service() {
     fi
 
     if [ ! -d "venv" ]; then
-        echo -e "${RED}❌ Ambiente virtual do CrewAI não encontrado. Criando...${NC}"
+        echo -e "${YELLOW}⚠️ Ambiente virtual do CrewAI não encontrado. Criando...${NC}"
         python3 -m venv venv
         source venv/bin/activate
+        echo -e "${BLUE}📦 Instalando dependências do CrewAI...${NC}"
+        pip install --upgrade pip
         pip install -r requirements.txt
     else
         source venv/bin/activate
