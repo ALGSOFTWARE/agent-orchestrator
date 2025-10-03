@@ -25,7 +25,8 @@ class ApiClient {
         // Add auth token if available
         const token = this.getAuthToken()
         if (token) {
-          config.headers.Authorization = `Bearer ${token}`
+          // Token já vem com "Bearer " prefix do getAuthToken()
+          config.headers.Authorization = token
         }
 
         return config
@@ -97,7 +98,65 @@ class ApiClient {
 
   private getAuthToken(): string | null {
     if (typeof window === 'undefined') return null
-    return localStorage.getItem('auth_token')
+
+    // Tentar obter JWT real do Zustand auth store primeiro
+    try {
+      const { useAuthStore } = require('@/lib/store/auth')
+      const authState = useAuthStore.getState()
+
+      // Verificar se temos um JWT token real armazenado
+      if (authState.isAuthenticated && authState.token) {
+        return `Bearer ${authState.token}`
+      }
+
+      // Se temos sessão mas sem token, pode ser sistema legado
+      if (authState.isAuthenticated && authState.sessionId) {
+        // Fallback para localStorage com JWT real
+        const token = localStorage.getItem('jwt_token')
+        if (token) {
+          return `Bearer ${token}`
+        }
+
+        // Como último recurso, usar mock token apenas para desenvolvimento
+        console.warn('⚠️ Usando mock token - implementar login JWT real')
+        const userData = {
+          id: authState.user?.userId || 'unknown',
+          email: authState.user?.userId + '@logistica.com.br',
+          name: 'Usuário Sistema',
+          role: authState.user?.role || 'operator'
+        }
+        const mockToken = this.createMockJWT(userData)
+        return `Bearer ${mockToken}`
+      }
+    } catch (error) {
+      console.warn('Erro ao obter token do auth store:', error)
+    }
+
+    // Fallback final para localStorage
+    const token = localStorage.getItem('jwt_token') || localStorage.getItem('auth_token')
+    return token ? `Bearer ${token}` : null
+  }
+
+  private createMockJWT(userData: any): string {
+    // Em produção, isso deveria ser feito pelo backend
+    // Aqui é apenas uma simulação para desenvolvimento
+    const header = { alg: 'HS256', typ: 'JWT' }
+    const payload = {
+      user_id: userData.id,
+      email: userData.email,
+      name: userData.name,
+      role: userData.role,
+      exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60), // 24 horas
+      iat: Math.floor(Date.now() / 1000),
+      iss: 'mit-frontend'
+    }
+
+    // Simulação simples de JWT (NÃO usar em produção)
+    const headerB64 = btoa(JSON.stringify(header))
+    const payloadB64 = btoa(JSON.stringify(payload))
+    const signature = btoa('mock-signature-' + userData.id)
+
+    return `${headerB64}.${payloadB64}.${signature}`
   }
 
   private getMockResponse(url: string, method: string): any {
@@ -229,12 +288,15 @@ class ApiClient {
   // === UTILITY METHODS === //
   setAuthToken(token: string): void {
     if (typeof window !== 'undefined') {
+      localStorage.setItem('jwt_token', token)
+      // Manter compatibilidade com sistema legado
       localStorage.setItem('auth_token', token)
     }
   }
 
   clearAuthToken(): void {
     if (typeof window !== 'undefined') {
+      localStorage.removeItem('jwt_token')
       localStorage.removeItem('auth_token')
     }
   }

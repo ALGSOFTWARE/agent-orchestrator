@@ -17,6 +17,7 @@ import uuid
 from ..models import ChatMessage, ChatSession, ChatRequest, ChatResponse
 from ..database import DatabaseService
 from ..services.crewai_service import CrewAIService
+from ..services.semantic_retrieval_service import SemanticRetrievalService
 from ..middleware.auth import get_current_user, get_current_user_optional, extract_user_context
 
 logger = logging.getLogger("GatekeeperAPI.Chat")
@@ -24,6 +25,7 @@ router = APIRouter()
 
 # Instanciar serviço CrewAI
 crewai_service = CrewAIService()
+semantic_retrieval_service = SemanticRetrievalService()
 
 
 @router.post("/message", response_model=ChatResponse)
@@ -44,7 +46,26 @@ async def send_chat_message(
         
         # Determinar agente baseado no tipo de mensagem ou usar LogisticsAgent por padrão
         agent_name = chat_request.agent_name or "LogisticsAgent"
-        
+
+        # Buscar contexto semântico relacionado à mensagem
+        semantic_context = []
+        semantic_summary = None
+        try:
+            semantic_context = await semantic_retrieval_service.retrieve_semantic_context(
+                chat_request.message,
+                order_id=chat_request.order_id,
+                limit=5
+            )
+            if semantic_context:
+                semantic_summary = _format_semantic_summary(semantic_context)
+                user_context["semanticContext"] = semantic_context
+                user_context["semanticContextSummary"] = semantic_summary
+        except Exception as retrieval_error:  # noqa: BLE001
+            logger.warning(
+                "Falha ao recuperar contexto semântico: %s",
+                retrieval_error
+            )
+
         # Enviar mensagem para o agente via CrewAI service
         agent_response = await crewai_service.send_message_to_agent(
             agent_name=agent_name,
@@ -55,7 +76,7 @@ async def send_chat_message(
         # Verificar se houve erro de comunicação com CrewAI e usar fallback inteligente
         if agent_response.get("success") == False:
             logger.info(f"🔄 CrewAI indisponível, usando fallback inteligente para: {chat_request.message}")
-            agent_message_content = _generate_intelligent_fallback_response(chat_request.message, current_user_role)
+            agent_message_content = _generate_intelligent_fallback_response(chat_request.message, current_user["role"])
         else:
             # CrewAI service retorna conteúdo no campo "message"
             agent_message_content = agent_response.get("message", "Processado com sucesso.")
@@ -72,7 +93,8 @@ async def send_chat_message(
                 "response_status": agent_response.get("status", "unknown"),
                 "processing_time": agent_response.get("processing_time", 0),
                 "user_name": current_user["name"],
-                "user_role": current_user["role"]
+                "user_role": current_user["role"],
+                "semantic_context": _context_metadata(semantic_context)
             }
         )
         
@@ -202,6 +224,44 @@ async def create_chat_session(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Erro ao criar sessão de chat"
         )
+
+
+def _format_semantic_summary(context_items: List[Dict[str, Any]]) -> str:
+    """Cria resumo textual compacto para ser usado no prompt do agente."""
+
+    lines: List[str] = []
+    for idx, item in enumerate(context_items[:3], start=1):
+        order_label = item.get("order_id") or "-"
+        document_label = item.get("document_name") or item.get("document_id") or "Documento"
+        score = item.get("score", 0.0)
+        excerpt = (item.get("chunk_text") or "").strip()
+        if len(excerpt) > 320:
+            excerpt = f"{excerpt[:320].rstrip()}…"
+        lines.append(
+            f"[{idx}] Order {order_label} • {document_label} (score {score:.2f})\n{excerpt}"
+        )
+
+    if not lines:
+        return ""
+
+    return "\n\n".join(lines)
+
+
+def _context_metadata(context_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Filtra apenas campos leves para registrar no histórico."""
+
+    metadata: List[Dict[str, Any]] = []
+    for item in context_items[:5]:
+        metadata.append(
+            {
+                "order_id": item.get("order_id"),
+                "document_id": item.get("document_id"),
+                "document_name": item.get("document_name"),
+                "score": item.get("score"),
+                "chunk_id": item.get("chunk_id"),
+            }
+        )
+    return metadata
 
 
 @router.get("/sessions")

@@ -30,7 +30,7 @@ logger = logging.getLogger("GatekeeperAPI")
 
 # Imports dos módulos internos
 from .database import init_database
-from .routes import auth, users, context, orders, files, visualizations, chat, mittracking
+from .routes import auth, users, context, orders, files, visualizations, chat, mittracking, semantic_index
 from .routes.crud import crud_router
 from .models import ErrorResponse
 
@@ -78,6 +78,7 @@ app.include_router(files.router, prefix="/files", tags=["File Upload"])
 app.include_router(visualizations.router, tags=["Data Visualizations"])
 app.include_router(chat.router, prefix="/chat", tags=["Chat & AI Agents"])
 app.include_router(mittracking.router, tags=["MitTracking"])
+app.include_router(semantic_index.router, prefix="/semantic-index", tags=["Semantic Index"])
 
 # Health check
 @app.get("/health")

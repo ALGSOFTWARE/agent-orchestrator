@@ -32,7 +32,10 @@ httpx==0.25.2
 
 # Utilitários
 python-dateutil==2.8.2
-typing-extensions==4.8.0
+typing-extensions==4.15.0
+
+# Autenticação JWT
+PyJWT==2.8.0
 
 # FASE 2: Processamento Inteligente de Documentos
 # OCR e extração de texto
@@ -44,6 +47,10 @@ PyPDF2==3.0.1
 # Embeddings via API (SEM modelos locais - economia de 2GB+ RAM!)
 aiohttp==3.9.1
 numpy==1.24.3
+sentence-transformers==5.1.1
+torch==2.8.0
+torchvision==0.23.0
+torchaudio==2.8.0
 
 # Processamento de texto
 nltk==3.8.1

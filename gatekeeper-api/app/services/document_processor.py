@@ -11,11 +11,13 @@ Funcionalidades:
 
 import asyncio
 import logging
+import os
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 import io
 import tempfile
 from datetime import datetime
+
 
 # OCR e processamento de imagens
 try:
@@ -40,6 +42,8 @@ except ImportError:
     logging.warning("NLTK não disponível. Instale: pip install nltk")
 
 from ..models import DocumentFile, ProcessingStatus, DocumentCategory
+from .embedding_service import EmbeddingService
+from .semantic_index_service import SemanticIndexService
 
 
 class DocumentProcessor:
@@ -48,6 +52,16 @@ class DocumentProcessor:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self._setup_nltk()
+        self.embedding_service = EmbeddingService()
+        self.semantic_index_service = SemanticIndexService()
+        self.semantic_index_enabled = os.getenv("SEMANTIC_INDEX_ENABLED", "true").lower() not in {"0", "false", "no"}
+        self.chunk_size = self._get_config_int("DOCUMENT_INDEX_CHUNK_SIZE", default=1500, minimum=400, maximum=4000)
+        self.chunk_overlap = self._get_config_int(
+            "DOCUMENT_INDEX_CHUNK_OVERLAP",
+            default=200,
+            minimum=0,
+            maximum=max(0, self.chunk_size // 2)
+        )
     
     def _setup_nltk(self):
         """Baixa recursos necessários do NLTK"""
@@ -59,7 +73,21 @@ class DocumentProcessor:
                 nltk.download('averaged_perceptron_tagger', quiet=True)
             except Exception as e:
                 self.logger.warning(f"Erro ao baixar recursos NLTK: {e}")
-    
+
+    def _get_config_int(self, env_key: str, *, default: int, minimum: int, maximum: int) -> int:
+        """Lê valor inteiro do ambiente respeitando limites informados."""
+
+        try:
+            value = int(os.getenv(env_key, default))
+        except (TypeError, ValueError):
+            return default
+
+        if minimum is not None:
+            value = max(minimum, value)
+        if maximum is not None:
+            value = min(maximum, value)
+        return value
+
     async def process_document(self, document: DocumentFile, file_content: bytes) -> Dict[str, Any]:
         """
         Processa um documento e extrai informações inteligentes
@@ -98,6 +126,23 @@ class DocumentProcessor:
                 document.tags = list(set(document.tags))  # Remove duplicatas
             
             await document.save()
+
+            semantic_chunks = 0
+            try:
+                semantic_chunks = await self._index_document_semantics(document)
+            except Exception as index_error:  # pragma: no cover - log e seguir
+                self.logger.warning(
+                    "Falha ao indexar semanticamente o documento %s: %s",
+                    document.file_id,
+                    index_error
+                )
+
+            if semantic_chunks:
+                document.embedding_model = getattr(self.embedding_service, "model_name", None)
+                document.add_processing_log(
+                    f"Semantic index atualizado com {semantic_chunks} chunks."
+                )
+                await document.save()
             
             return {
                 'success': True,
@@ -105,6 +150,7 @@ class DocumentProcessor:
                 'sentences': len(processed_text['sentences']),
                 'logistics_entities': logistics_info['entities'],
                 'confidence_score': logistics_info['confidence'],
+                'semantic_chunks_indexed': semantic_chunks,
                 'processing_time': datetime.utcnow().isoformat()
             }
             
@@ -119,6 +165,147 @@ class DocumentProcessor:
                 'error': str(e),
                 'processing_time': datetime.utcnow().isoformat()
             }
+
+    def _split_text_for_embedding(
+        self,
+        text: str,
+        chunk_size: Optional[int] = None,
+        overlap: Optional[int] = None
+    ) -> List[str]:
+        """Divide texto em chunks com sobreposição leve para geração de embedding."""
+
+        chunk_size = chunk_size or self.chunk_size
+        overlap = self.chunk_overlap if overlap is None else overlap
+        overlap = min(overlap, max(0, chunk_size // 2))
+
+        cleaned = (text or "").strip()
+        if not cleaned:
+            return []
+
+        if len(cleaned) <= chunk_size:
+            return [cleaned]
+
+        sentences: List[str] = []
+        if NLTK_AVAILABLE:
+            try:
+                sentences = sent_tokenize(cleaned)
+            except Exception:
+                sentences = []
+
+        if not sentences:
+            normalized = cleaned.replace("\n", " ")
+            sentences = [segment.strip() for segment in normalized.split('.') if segment.strip()]
+            sentences = [f"{segment}." for segment in sentences]
+
+        chunks: List[str] = []
+        current = ""
+
+        for sentence in sentences:
+            snippet = sentence.strip()
+            if not snippet:
+                continue
+            if snippet[-1] not in {'.', '!', '?'}:
+                snippet = f"{snippet}."
+
+            candidate = f"{current} {snippet}".strip() if current else snippet
+
+            if len(candidate) <= chunk_size:
+                current = candidate
+                continue
+
+            if current:
+                chunks.append(current.strip())
+                if overlap:
+                    overlap_text = current[-overlap:].strip()
+                    current = f"{overlap_text} {snippet}".strip() if overlap_text else snippet
+                else:
+                    current = snippet
+            else:
+                current = snippet
+
+            while len(current) > chunk_size:
+                chunks.append(current[:chunk_size].strip())
+                current = current[chunk_size:].strip()
+
+        if current:
+            chunks.append(current.strip())
+
+        if not chunks:
+            return [cleaned]
+
+        # Sanitizar chunks vazios ou duplicados por corte agressivo
+        sanitized = []
+        for chunk in chunks:
+            trimmed = chunk.strip()
+            if trimmed and (not sanitized or trimmed != sanitized[-1]):
+                sanitized.append(trimmed)
+
+        return sanitized
+
+    async def _index_document_semantics(self, document: DocumentFile) -> int:
+        """Gera embeddings e atualiza o índice semântico para o documento fornecido."""
+
+        if not getattr(self, "embedding_service", None):
+            return 0
+
+        if not getattr(self, "semantic_index_enabled", True):
+            return 0
+
+        if not self.embedding_service.is_available():
+            self.logger.debug(
+                "Serviço de embeddings indisponível; ignorando indexação semântica para %s",
+                document.file_id
+            )
+            return 0
+
+        text = (document.text_content or "").strip()
+        if not text:
+            return 0
+
+        chunks = self._split_text_for_embedding(text)
+        if not chunks:
+            return 0
+
+        embeddings_payload: List[Dict[str, Any]] = []
+        model_name = getattr(self.embedding_service, "model_name", "unknown")
+        processed_at = datetime.utcnow().isoformat()
+
+        for index, chunk_text in enumerate(chunks):
+            embedding = await self.embedding_service.generate_embedding(chunk_text)
+            if not embedding:
+                continue
+
+            embeddings_payload.append({
+                "chunk_id": f"{document.file_id}-chunk-{index}",
+                "chunk_index": index,
+                "text": chunk_text,
+                "embedding": embedding,
+                "embedding_model": model_name,
+                "source_category": getattr(document.category, "value", document.category),
+                "metadata": {
+                    "source": "DocumentProcessor",
+                    "uploaded_at": document.uploaded_at.isoformat() if document.uploaded_at else None,
+                    "processed_at": processed_at,
+                    "original_filename": document.original_name,
+                },
+            })
+
+        if not embeddings_payload:
+            return 0
+
+        await self.semantic_index_service.upsert_document_vectors(
+            order_id=document.order_id,
+            source_document_id=document.file_id,
+            chunks=embeddings_payload,
+        )
+
+        self.logger.info(
+            "Indexação semântica aplicada: %s chunks para documento %s",
+            len(embeddings_payload),
+            document.file_id
+        )
+
+        return len(embeddings_payload)
     
     async def _extract_text(self, document: DocumentFile, file_content: bytes) -> str:
         """Extrai texto de diferentes tipos de arquivo"""

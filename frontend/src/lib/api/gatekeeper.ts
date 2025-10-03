@@ -82,7 +82,7 @@ export async function getGatekeeperHealth() {
       timestamp: string
       version: string
     }>('/health')
-    
+
     return {
       ...response,
       healthy: response.status === 'healthy'
@@ -96,6 +96,55 @@ export async function getGatekeeperHealth() {
       healthy: false,
       error: error instanceof Error ? error.message : 'Connection failed'
     }
+  }
+}
+
+/**
+ * Login real com JWT do Gatekeeper
+ */
+export async function loginWithGatekeeper(email: string, password?: string) {
+  try {
+    const response = await gatekeeperClient.postRaw<{
+      access_token: string
+      token_type: string
+      expires_in: number
+      user: {
+        id: string
+        name: string
+        email: string
+        role: string
+      }
+      context: any
+    }>('/auth/login', { email, password })
+
+    // Armazenar token JWT real
+    gatekeeperClient.setAuthToken(response.access_token)
+
+    return {
+      success: true,
+      token: response.access_token,
+      user: response.user,
+      context: response.context,
+      expiresIn: response.expires_in
+    }
+  } catch (error) {
+    console.error('❌ Erro no login com Gatekeeper:', error)
+    throw new Error('Falha na autenticação com Gatekeeper')
+  }
+}
+
+/**
+ * Logout e limpeza do JWT
+ */
+export async function logoutFromGatekeeper() {
+  try {
+    // Limpar token do cliente
+    gatekeeperClient.clearAuthToken()
+
+    return { success: true }
+  } catch (error) {
+    console.error('❌ Erro no logout:', error)
+    return { success: false, error: error instanceof Error ? error.message : 'Erro desconhecido' }
   }
 }
 

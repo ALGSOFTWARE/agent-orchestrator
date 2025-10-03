@@ -5,6 +5,8 @@ Modelos Pydantic e Beanie para o microserviço de autenticação.
 Inclui modelos para usuários, clientes, contexto e validação de dados.
 """
 
+import hashlib
+
 from pydantic import BaseModel, Field, EmailStr, validator
 from beanie import Document, Link
 from typing import List, Optional, Dict, Any
@@ -76,6 +78,16 @@ class OrderType(str, Enum):
     INTERNATIONAL_FREIGHT = "international_freight"
     WAREHOUSING = "warehousing"
     CUSTOMS_CLEARANCE = "customs_clearance"
+
+
+class OrderEventKind(str, Enum):
+    """Tipos de eventos representados no índice semântico da Order"""
+    STATUS_CHANGE = "status_change"
+    NOTE = "note"
+    DOCUMENT = "document"
+    COMMUNICATION = "communication"
+    INCIDENT = "incident"
+    MILESTONE = "milestone"
 
 
 # Modelos de Request/Response
@@ -207,6 +219,72 @@ class DocumentFile(Document):
         self.error_details = error_message
         self.add_processing_log(f"Erro: {error_message}")
 
+
+class DocumentVector(Document):
+    """Chunks vetorizados derivados de DocumentFile para busca semântica."""
+
+    vector_id: str = Field(default_factory=lambda: str(uuid4()), unique=True)
+    order_id: str = Field(..., description="Order relacionada ao chunk")
+    source_document_id: str = Field(..., description="Documento original")
+    chunk_id: str = Field(..., description="Identificador lógico do chunk")
+    chunk_index: int = Field(default=0, description="Posição do chunk dentro do documento")
+    text: str = Field(..., description="Trecho normalizado usado na geração do embedding")
+    text_hash: Optional[str] = Field(None, description="Hash SHA-256 do texto para deduplicação")
+    embedding: List[float] = Field(..., description="Embedding do chunk")
+    embedding_model: str = Field(..., description="Modelo utilizado para gerar o embedding")
+    source_category: Optional[str] = Field(None, description="Categoria do documento de origem")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Metadados adicionais do chunk")
+    relevance_score: Optional[float] = Field(None, description="Score heurístico atribuído na ingestão")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Settings:
+        name = "document_vectors"
+        indexes = ["order_id", "source_document_id", "chunk_id"]
+
+    @validator("text_hash", pre=True, always=True)
+    def _ensure_text_hash(cls, value, values):  # noqa: D401
+        """Garante que cada chunk possua hash consistente para idempotência."""
+        if value:
+            return value
+        text = values.get("text")
+        if text:
+            return hashlib.sha256(text.encode("utf-8")).hexdigest()
+        return value
+
+
+class OrderEventVector(Document):
+    """Eventos relevantes da Order convertidos em embeddings."""
+
+    vector_id: str = Field(default_factory=lambda: str(uuid4()), unique=True)
+    order_id: str = Field(..., description="Order relacionada ao evento")
+    event_id: str = Field(..., description="Identificador do evento rastreado")
+    event_type: OrderEventKind = Field(..., description="Categoria do evento")
+    event_timestamp: datetime = Field(default_factory=datetime.utcnow, description="Timestamp original do evento")
+    summary: str = Field(..., description="Resumo usado para geração do embedding")
+    text_hash: Optional[str] = Field(None, description="Hash SHA-256 do resumo")
+    embedding: List[float] = Field(..., description="Embedding do evento")
+    embedding_model: str = Field(..., description="Modelo utilizado para gerar o embedding")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Metadados adicionais do evento")
+    related_document_ids: List[str] = Field(default_factory=list, description="Documentos associados ao evento")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Settings:
+        name = "order_event_vectors"
+        indexes = ["order_id", "event_id", "event_type"]
+
+    @validator("text_hash", pre=True, always=True)
+    def _ensure_event_hash(cls, value, values):  # noqa: D401
+        """Garante consistência de hash para deduplicação idempotente."""
+        if value:
+            return value
+        summary = values.get("summary")
+        if summary:
+            return hashlib.sha256(summary.encode("utf-8")).hexdigest()
+        return value
+
+
 class Order(Document):
     """Super-contêiner: Nó central que representa uma Ordem de Serviço ou Operação Logística completa."""
     # Identificação e controle
@@ -255,6 +333,9 @@ class Order(Document):
     # Tracking e auditoria
     status_history: List[Dict[str, Any]] = Field(default_factory=list, description="Histórico de mudanças de status")
     notes: List[Dict[str, Any]] = Field(default_factory=list, description="Notas e comentários")
+
+    # Versionamento estilo Git
+    version_history: List[Dict[str, Any]] = Field(default_factory=list, description="Histórico de versões estilo Git")
     
     # Análise e métricas
     document_count: int = Field(default=0, description="Contador de documentos")
@@ -265,8 +346,10 @@ class Order(Document):
         
     def add_status_change(self, new_status: OrderStatus, user_id: str, notes: Optional[str] = None):
         """Adiciona mudança de status ao histórico"""
+        old_status = self.status.value if self.status else "created"
+
         change = {
-            "from_status": self.status.value if self.status else None,
+            "from_status": old_status,
             "to_status": new_status.value,
             "changed_by": user_id,
             "changed_at": datetime.utcnow().isoformat(),
@@ -276,6 +359,18 @@ class Order(Document):
         self.status = new_status
         self.updated_at = datetime.utcnow()
         self.last_activity = datetime.utcnow()
+
+        # Adicionar ao histórico de versões
+        self.add_version_commit(
+            action="status_changed",
+            user_id=user_id,
+            message=f"Status alterado de '{old_status}' para '{new_status.value}'",
+            details={
+                "from_status": old_status,
+                "to_status": new_status.value,
+                "notes": notes
+            }
+        )
         
     def add_note(self, content: str, user_id: str, note_type: str = "comment"):
         """Adiciona nota ou comentário"""
@@ -288,20 +383,79 @@ class Order(Document):
         }
         self.notes.append(note)
         self.last_activity = datetime.utcnow()
+
+        # Adicionar ao histórico de versões
+        self.add_version_commit(
+            action="note_added",
+            user_id=user_id,
+            message=f"Nota adicionada: {content[:50]}{'...' if len(content) > 50 else ''}",
+            details={
+                "note_id": note["id"],
+                "note_type": note_type,
+                "content_preview": content[:100]
+            }
+        )
         
-    def add_document(self, document_file: DocumentFile):
+    def add_document(self, document_file: DocumentFile, user_id: str = "system"):
         """Vincula um documento à ordem"""
         # Criar link para o documento
         doc_link = Link(document_file.id, DocumentFile)
         self.document_files.append(doc_link)
-        
+
         # Atualizar contador e atividade
         self.document_count += 1
         self.last_activity = datetime.utcnow()
-        
+
         # Atualizar o documento com o ID da ordem
         document_file.order_id = self.order_id
-        
+
+        # Adicionar ao histórico de versões
+        self.add_version_commit(
+            action="document_added",
+            user_id=user_id,
+            message=f"Documento '{document_file.original_name}' adicionado",
+            details={
+                "document_id": document_file.file_id,
+                "document_name": document_file.original_name,
+                "document_category": document_file.category.value,
+                "file_size": document_file.size_bytes
+            }
+        )
+
+    def add_version_commit(self, action: str, user_id: str, message: str, details: Optional[Dict[str, Any]] = None):
+        """Adiciona um commit ao histórico de versões estilo Git"""
+        import hashlib
+        import random
+
+        # Gerar hash estilo Git (8 caracteres hex)
+        timestamp = datetime.utcnow().isoformat()
+        hash_input = f"{self.order_id}{action}{user_id}{timestamp}{random.randint(1000, 9999)}"
+        commit_hash = hashlib.sha256(hash_input.encode()).hexdigest()[:8]
+
+        commit = {
+            "hash": commit_hash,
+            "action": action,
+            "message": message,
+            "user_id": user_id,
+            "timestamp": timestamp,
+            "details": details or {}
+        }
+
+        self.version_history.append(commit)
+        self.last_activity = datetime.utcnow()
+
+    def get_version_history(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Retorna histórico de versões ordenado por data (mais recente primeiro)"""
+        history = sorted(self.version_history, key=lambda x: x["timestamp"], reverse=True)
+        return history[:limit] if limit else history
+
+    def get_commit_by_hash(self, commit_hash: str) -> Optional[Dict[str, Any]]:
+        """Busca um commit específico pelo hash"""
+        for commit in self.version_history:
+            if commit["hash"] == commit_hash:
+                return commit
+        return None
+
     def get_summary(self) -> Dict[str, Any]:
         """Retorna resumo da ordem para dashboards"""
         return {
@@ -444,6 +598,7 @@ __all__ = [
     "UserRole",
     "AgentStatus", 
     "AuthStatus",
+    "OrderEventKind",
     # Request/Response models
     "AuthPayload",
     "UserRequest",
@@ -458,6 +613,8 @@ __all__ = [
     "Shipment", 
     "TrackingEvent",
     "Order",
+    "DocumentVector",
+    "OrderEventVector",
     "DocumentFile",
     "CTEDocument",
     "BLDocument",
@@ -483,6 +640,7 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=5000, description="Mensagem do usuário")
     session_id: str = Field(..., description="ID da sessão de chat")
     agent_name: Optional[str] = Field(None, description="Nome do agente específico (opcional)")
+    order_id: Optional[str] = Field(None, description="Order usada como foco da busca semântica")
     
     class Config:
         json_schema_extra = {

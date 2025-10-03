@@ -8,7 +8,7 @@ import {
   type UserRole,
   type GatekeeperResponse 
 } from '@/types'
-import { authenticateUser, TEST_USERS } from '@/lib/api/gatekeeper'
+import { authenticateUser, TEST_USERS, loginWithGatekeeper, logoutFromGatekeeper } from '@/lib/api/gatekeeper'
 
 interface AuthState {
   // Current user state
@@ -16,15 +16,20 @@ interface AuthState {
   isAuthenticated: boolean
   isLoading: boolean
   error: string | null
-  
+
   // Authentication session
   sessionId: string | null
   authenticatedAgent: string | null
   lastAuthResponse: GatekeeperResponse | null
-  
+
+  // JWT token
+  token: string | null
+  tokenExpires: number | null
+
   // Actions
   login: (payload: AuthPayload) => Promise<void>
   loginWithTestUser: (userType: keyof typeof TEST_USERS) => Promise<void>
+  loginWithJWT: (email: string, password?: string) => Promise<void>
   logout: () => void
   clearError: () => void
   refreshSession: () => Promise<void>
@@ -41,6 +46,8 @@ export const useAuthStore = create<AuthState>()(
       sessionId: null,
       authenticatedAgent: null,
       lastAuthResponse: null,
+      token: null,
+      tokenExpires: null,
 
       // Login with custom payload
       login: async (payload: AuthPayload) => {
@@ -93,12 +100,68 @@ export const useAuthStore = create<AuthState>()(
           timestamp: new Date().toISOString(),
           sessionId: `test_session_${userType}_${Date.now()}`
         }
-        
+
         await get().login(payload)
       },
 
+      // Login with JWT real do Gatekeeper
+      loginWithJWT: async (email: string, password?: string) => {
+        set({ isLoading: true, error: null })
+
+        try {
+          const response = await loginWithGatekeeper(email, password)
+
+          if (response.success) {
+            const userContext: UserContext = {
+              userId: response.user.id,
+              userName: response.user.name,
+              role: response.user.role as UserRole,
+              permissions: response.context?.permissions || [],
+              sessionId: `jwt_session_${Date.now()}`,
+              timestamp: new Date().toISOString()
+            }
+
+            const tokenExpires = Date.now() + (response.expiresIn * 1000)
+
+            set({
+              user: userContext,
+              isAuthenticated: true,
+              isLoading: false,
+              error: null,
+              sessionId: userContext.sessionId || null,
+              authenticatedAgent: 'LogisticsAgent', // Default agent
+              lastAuthResponse: null,
+              token: response.token,
+              tokenExpires
+            })
+          } else {
+            throw new Error('Falha na autenticação com JWT')
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Falha na autenticação JWT'
+          set({
+            user: null,
+            isAuthenticated: false,
+            isLoading: false,
+            error: errorMessage,
+            sessionId: null,
+            authenticatedAgent: null,
+            lastAuthResponse: null,
+            token: null,
+            tokenExpires: null
+          })
+          throw error
+        }
+      },
+
       // Logout
-      logout: () => {
+      logout: async () => {
+        try {
+          await logoutFromGatekeeper()
+        } catch (error) {
+          console.warn('⚠️ Erro no logout do Gatekeeper:', error)
+        }
+
         set({
           user: null,
           isAuthenticated: false,
@@ -106,7 +169,9 @@ export const useAuthStore = create<AuthState>()(
           error: null,
           sessionId: null,
           authenticatedAgent: null,
-          lastAuthResponse: null
+          lastAuthResponse: null,
+          token: null,
+          tokenExpires: null
         })
       },
 
@@ -137,7 +202,9 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         isAuthenticated: state.isAuthenticated,
         sessionId: state.sessionId,
-        authenticatedAgent: state.authenticatedAgent
+        authenticatedAgent: state.authenticatedAgent,
+        token: state.token,
+        tokenExpires: state.tokenExpires
       })
     }
   )
@@ -185,4 +252,25 @@ export function useHasRole(role: UserRole) {
 // Get user role
 export function useUserRole() {
   return useAuthStore((state) => state.user?.role as UserRole | null)
+}
+
+// Get JWT token
+export function useAuthToken() {
+  return useAuthStore((state) => state.token)
+}
+
+// Check if token is expired
+export function useIsTokenExpired() {
+  return useAuthStore((state) => {
+    if (!state.token || !state.tokenExpires) return true
+    return Date.now() >= state.tokenExpires
+  })
+}
+
+// Get token expiration time
+export function useTokenExpiresIn() {
+  return useAuthStore((state) => {
+    if (!state.tokenExpires) return null
+    return Math.max(0, state.tokenExpires - Date.now())
+  })
 }

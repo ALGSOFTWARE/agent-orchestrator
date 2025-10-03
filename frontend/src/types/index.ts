@@ -27,6 +27,7 @@ export interface GatekeeperResponse {
 
 export interface UserContext {
   userId: string
+  userName?: string
   role: string
   permissions: string[]
   sessionId?: string
